@@ -306,22 +306,24 @@ function render(now){requestAnimationFrame(render);const dt=Math.min(.04,(now-la
   updateUnitHp();
   const marker=$('lockMarker');
   if(started&&t&&t.alive){
-   // Anchor the marker to the target's HP indicator in screen space so their spacing stays consistent at every camera angle.
+   // Anchor the lock marker to a point just above the target's torso, independent of the HP bar.
+   // Projecting this world-space point keeps it over the body from every camera angle.
    const projected=new THREE.Vector3(t.x,t.y+1.35,t.z).project(camera);
    const visible=projected.z>-1&&projected.z<1&&Math.abs(projected.x)<1.2&&Math.abs(projected.y)<1.2;
    const hp=hpEls[targetIndex];
    marker.style.display=visible?'block':'none';
-   if(visible&&hp&&hp.style.display!=='none'){
-    const r=hp.getBoundingClientRect();
-    const hpCenterX=r.left+r.width/2;
-    const bodyY=(-projected.y*.5+.5)*innerHeight;
-    // Keep a constant screen-space gap below the HP bar; steep camera angles cannot push the marker into it.
-    const markerCenterY=Math.max(bodyY,r.bottom+25.6);
-    marker.style.left=hpCenterX+'px';
-    marker.style.top=markerCenterY+'px';
-   }else{
-    marker.style.left=((projected.x*.5+.5)*innerWidth)+'px';
-    marker.style.top=((-projected.y*.5+.5)*innerHeight)+'px';
+   if(visible){
+    const markerX=(projected.x*.5+.5)*innerWidth;
+    const markerY=(-projected.y*.5+.5)*innerHeight;
+    marker.style.left=markerX+'px';
+    marker.style.top=markerY+'px';
+    // HP bar follows the marker with a fixed gap; the marker is the positioning anchor.
+    // .unitHp uses translate(-50%,-100%), so `top` is its bottom edge.
+    if(hp){
+     hp.style.display='block';
+     hp.style.left=markerX+'px';
+     hp.style.top=(markerY-43.2/2-10)+'px';
+    }
    }
   }else marker.style.display='none';
  }else $('lockMarker').style.display='none';
