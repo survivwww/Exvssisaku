@@ -107,18 +107,20 @@ if(!window.THREE){$('submessage').textContent='3Dライブラリを読み込め�
 const THREE=window.THREE, canvas=$('view');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputEncoding=THREE.sRGBEncoding;
-const scene=new THREE.Scene();scene.background=new THREE.Color(0x071321);scene.fog=new THREE.Fog(0x071321,42,105);
-const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,220);
-scene.add(new THREE.HemisphereLight(0x9edfff,0x172334,1.55));
-const sun=new THREE.DirectionalLight(0xc5e8ff,2.0);sun.position.set(-15,30,10);sun.castShadow=true;scene.add(sun);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x87c9f2);
+const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,450);
+scene.add(new THREE.HemisphereLight(0xdaf2ff,0x4e7540,1.65));
+const sun=new THREE.DirectionalLight(0xfff0c9,2.25);sun.position.set(-38,52,-42);sun.castShadow=true;scene.add(sun);
+// Visible sun disk in the open sky; lighting is provided by the directional light above.
+const sunDisk=new THREE.Mesh(new THREE.SphereGeometry(4.2,24,16),new THREE.MeshBasicMaterial({color:0xffe7a0}));sunDisk.position.set(-62,48,-82);scene.add(sunDisk);
+const sunHalo=new THREE.Mesh(new THREE.SphereGeometry(6.2,24,16),new THREE.MeshBasicMaterial({color:0xffd56a,transparent:true,opacity:.16,depthWrite:false}));sunHalo.position.copy(sunDisk.position);scene.add(sunHalo);
 const arena=116;
-function groundHeight(x,z){return 0.22*Math.sin(x*.105)*Math.cos(z*.09)+0.12*Math.sin((x+z)*.16)+0.08*Math.cos(z*.22)}
-const terrainGeo=new THREE.PlaneGeometry(arena,arena,72,72);
+function groundHeight(x,z){return 1.75*Math.sin(x*.047)*Math.cos(z*.043)+1.05*Math.sin((x+z)*.052)+0.55*Math.cos(z*.085)+0.45*Math.sin((x-z)*.078)}
+const terrainGeo=new THREE.PlaneGeometry(arena,arena,112,112);
 const pos=terrainGeo.attributes.position;
 for(let i=0;i<pos.count;i++){const x=pos.getX(i),z=-pos.getY(i);pos.setZ(i,groundHeight(x,z))}
 terrainGeo.computeVertexNormals();
-const floor=new THREE.Mesh(terrainGeo,new THREE.MeshStandardMaterial({color:0x172b3c,roughness:.9,metalness:.08}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
-const grid=new THREE.GridHelper(arena,58,0x31546a,0x20394b);grid.position.y=.025;grid.material.transparent=true;grid.material.opacity=.23;scene.add(grid);
+const floor=new THREE.Mesh(terrainGeo,new THREE.MeshStandardMaterial({color:0x4f963b,roughness:1,metalness:0}));floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
 const mat=(c,metal=.35,rough=.5)=>new THREE.MeshStandardMaterial({color:c,metalness:metal,roughness:rough});
 const coverMat=mat(0x304a5e,.65,.6), buildings=[];
 const buildingSpecs=[[-15,-12,5,4,2.5],[14,13,6,4,2.8],[-28,20,4,7,2.2],[29,-19,5,4,2.6],[2,28,7,4,2.4],[-3,-30,6,4,2.3],[34,9,4,6,2.5],[-35,-8,5,5,2.7]];
@@ -127,7 +129,7 @@ for(const [x,z,w,d,h] of buildingSpecs){
  const stripe=new THREE.Mesh(new THREE.BoxGeometry(w*.78,.06,.08),mat(0x4fcde8,.2,.4));stripe.position.set(x,base+h*.68,z-d/2-.045);scene.add(stripe);
  buildings.push({x,z,w,d,h,base});
 }
-const boundary=new THREE.Mesh(new THREE.BoxGeometry(arena,.25,arena),new THREE.MeshStandardMaterial({color:0x244256,wireframe:true,transparent:true,opacity:.25}));boundary.position.y=.1;scene.add(boundary);
+// No visible arena grid or wireframe boundary: keep the field natural and open.
 function resolveBuildingCollision(u,oldX,oldZ){
  for(const b of buildings){const pad=.72,insideX=Math.abs(u.x-b.x)<b.w/2+pad,insideZ=Math.abs(u.z-b.z)<b.d/2+pad;
   if(insideX&&insideZ){const ox=Math.abs(oldX-b.x)/(b.w/2+pad),oz=Math.abs(oldZ-b.z)/(b.d/2+pad);if(ox>oz)u.x=oldX;else if(oz>ox)u.z=oldZ;else{const px=b.w/2+pad-Math.abs(u.x-b.x),pz=b.d/2+pad-Math.abs(u.z-b.z);if(px<pz)u.x=b.x+Math.sign(u.x-b.x||1)*(b.w/2+pad);else u.z=b.z+Math.sign(u.z-b.z||1)*(b.d/2+pad)}u.vx*=.25;u.vz*=.25;}
