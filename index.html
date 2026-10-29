@@ -260,7 +260,7 @@ function render(now){requestAnimationFrame(render);const dt=Math.min(.04,(now-la
 requestAnimationFrame(render);
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7))});
 const zone=$('stickZone'),stick=$('stick');let stickId=null;
-function setStick(e){const r=zone.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),len=Math.hypot(dx,dy),max=43,x=len>max?dx/len*max:dx,y=len>max?dy/len*max:dy;move.x=x/max;move.y=y/max;stick.style.transform=`translate(${x}px,${y}px)`}
+function setStick(e){const r=zone.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),len=Math.hypot(dx,dy),max=43,x=len>max?dx/len*max:dx,y=len>max?dy/len*max:dy;move.x=x/max;move.y=-y/max;stick.style.transform=`translate(${x}px,${y}px)`}
 zone.addEventListener('pointerdown',e=>{stickId=e.pointerId;zone.setPointerCapture(stickId);setStick(e)});zone.addEventListener('pointermove',e=>{if(e.pointerId===stickId)setStick(e)});
 function release(e){if(e.pointerId===stickId){stickId=null;move.x=move.y=0;stick.style.transform='translate(0,0)'}}
 zone.addEventListener('pointerup',release);zone.addEventListener('pointercancel',release);
