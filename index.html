@@ -7,8 +7,8 @@
 <title>EXTREME DUEL 3D | 2v2</title>
 <style>
 :root{color-scheme:dark;--cyan:#56eaff;--red:#ff536e;--gold:#ffe17b}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071321;font-family:system-ui,-apple-system,sans-serif;touch-action:none;color:#fff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-user-drag:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071321;font-family:system-ui,-apple-system,sans-serif;touch-action:none;overscroll-behavior:none;color:#fff}
 #view{position:fixed;inset:0;width:100%;height:100%;display:block}
 #hud{position:fixed;inset:0;pointer-events:none;text-shadow:0 2px 3px #000}
 .top{position:absolute;top:max(7px,env(safe-area-inset-top));left:8px;right:8px;display:flex;align-items:flex-start;justify-content:space-between;gap:6px}
@@ -64,6 +64,26 @@ select{width:100%;padding:12px;border-radius:9px;border:1px solid #66869b;backgr
 <label for="difficulty">CPUの強さ</label><select id="difficulty"><option value="easy">EASY — ゆっくり反応</option><option value="normal" selected>NORMAL — 標準</option><option value="hard">HARD — 高精度・高頻度攻撃</option></select>
 <button id="start">出撃する</button><div class="note">味方1機＋敵2機はすべてCPU。チームコストが0になると敗北です。3D描画にThree.jsをCDNから読み込みます（無料・インストール不要、初回は通信が必要）。</div>
 </div></div>
+
+<script>
+/* iOS/Safari: suppress text selection, callout menus, double-tap zoom and gesture zoom. */
+(()=> {
+  'use strict';
+  document.addEventListener('selectstart', e => e.preventDefault(), {passive:false});
+  document.addEventListener('contextmenu', e => e.preventDefault(), {passive:false});
+  document.addEventListener('dragstart', e => e.preventDefault(), {passive:false});
+  ['gesturestart','gesturechange','gestureend'].forEach(type => {
+    document.addEventListener(type, e => e.preventDefault(), {passive:false});
+  });
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', e => {
+    const now = Date.now();
+    if (now - lastTouchEnd <= 350) e.preventDefault();
+    lastTouchEnd = now;
+  }, {passive:false});
+})();
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (()=>{'use strict';
