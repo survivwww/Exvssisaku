@@ -303,6 +303,10 @@ function render(now){requestAnimationFrame(render);const dt=Math.min(.04,(now-la
   camera.position.lerp(behind,.12);
   const look=t&&t.alive?new THREE.Vector3(t.x,t.y+1.55,t.z):new THREE.Vector3(p.x,p.y+1.2,p.z);
   camera.lookAt(look);
+  // Update the camera world matrix before projecting HUD anchors. Without this,
+  // projection can use the previous frame's camera transform during fast lateral dashes.
+  camera.updateMatrixWorld(true);
+  camera.updateProjectionMatrix();
   updateUnitHp();
   const marker=$('lockMarker');
   if(started&&t&&t.alive){
