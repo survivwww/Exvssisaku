@@ -12,21 +12,20 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071321;fon
 #view{position:fixed;inset:0;width:100%;height:100%;display:block}
 #hud{position:fixed;inset:0;pointer-events:none;text-shadow:0 2px 3px #000}
 .top{position:absolute;top:max(7px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px}
+#costHud{position:absolute;left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));width:min(190px,48vw);display:flex;flex-direction:column;gap:7px;text-shadow:0 1px 3px #000}
+.costRow{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:5px}
+.costTeam{font:900 8px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.06em;color:#eafaff;white-space:nowrap}
+.costTrack{height:9px;position:relative;overflow:hidden;background:#071522b8;border:1px solid #d5f6ff85;transform:skewX(-14deg);box-shadow:0 0 4px #0009}
+.costFill{height:100%;width:100%;transition:width .15s linear}
+#costFillA{background:linear-gradient(90deg,#087fce,#55eaff)}
+#costFillB{background:linear-gradient(90deg,#b91e42,#ff536e)}
+.costTicks{position:absolute;inset:0;display:grid;grid-template-columns:repeat(5,1fr);pointer-events:none}
+.costTicks i{border-right:1px solid #e9fbff70}
+.costNum{font:900 10px/1 ui-monospace,SFMono-Regular,monospace;min-width:31px;text-align:right;color:#fff;white-space:nowrap}
 .panel{background:#06111c72;border:1px solid #bceaff35;border-radius:5px;padding:4px 9px;backdrop-filter:blur(3px);min-width:0}
 .center{min-width:108px;text-align:center}.small{font-size:8px;letter-spacing:.13em;color:#c9e9f5}.val{font-size:13px;font-weight:950;white-space:nowrap}
 .bar{height:5px;background:#263849;border-radius:2px;overflow:hidden;margin-top:3px}.fill{height:100%;background:linear-gradient(90deg,#43d9c6,#c4fff0);width:100%}
 .red{background:linear-gradient(90deg,#ff3e60,#ffae65)}
-#costHud{position:absolute;left:max(8px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));width:min(190px,48vw);display:flex;flex-direction:column;gap:7px;filter:drop-shadow(0 1px 2px #000);}
-.costRow{display:grid;grid-template-columns:42px minmax(0,1fr) 38px;align-items:center;gap:5px;font:900 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.04em;}
-.costTeam{white-space:nowrap;color:#e8f7ff;}
-.costTrack{height:10px;position:relative;overflow:hidden;background:#152536a8;border-radius:1px;}
-.costFill{height:100%;width:100%;transition:width .18s linear;}
-#costFillA{background:linear-gradient(90deg,#147cff,#65c9ff);box-shadow:0 0 7px #278eff88;}
-#costFillB{background:linear-gradient(90deg,#d92743,#ff6877);box-shadow:0 0 7px #ff405988;}
-.costTicks{position:absolute;inset:0;display:grid;grid-template-columns:repeat(6,1fr);pointer-events:none;}
-.costTicks i{border-right:1px solid #d9f2ff70;}
-.costTicks i:last-child{border-right:0;}
-.costNum{text-align:right;color:#fff;font-size:10px;font-variant-numeric:tabular-nums;white-space:nowrap;}
 #combatHud{position:absolute;left:50%;bottom:max(7px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(184px,42vw);text-align:center;padding:2px 9px 4px;background:transparent;border:0;border-radius:0;box-shadow:none;backdrop-filter:none;filter:drop-shadow(0 2px 2px #000)}
 #boostLabel{font:900 8px/1.2 ui-monospace,SFMono-Regular,monospace;letter-spacing:.32em;color:#e1faff;-webkit-text-stroke:.25px #06283c;text-shadow:0 0 3px #000,0 0 8px #56eaff,0 0 13px #56eaff88}
 #boostBar{height:10px;margin-top:3px;position:relative;overflow:hidden;background:linear-gradient(180deg,#0b1a29dd,#07121fe8);border:1px solid #b8f4ff;box-shadow:0 0 0 1px #03101c,0 0 7px #35d8ff99;transform:skewX(-18deg);clip-path:polygon(7% 0,100% 0,93% 100%,0 100%)}
@@ -38,10 +37,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071321;fon
 .unitHp .hpFill{height:100%;width:100%;background:linear-gradient(90deg,#19c96b,#8bffba);box-shadow:0 0 6px #30ff9c}
 .unitHp.enemy .hpFill{background:linear-gradient(90deg,#ff304f,#ff8a96);box-shadow:0 0 6px #ff425d}
 .unitHp.ally .hpFill{background:linear-gradient(90deg,#11bd69,#9bffc5)}
-#lockMarker{position:fixed;left:50%;top:50%;width:54px;height:54px;transform:translate(-50%,-50%);border:2px solid #ff536e;border-radius:50%;box-shadow:0 0 10px #ff536e99,inset 0 0 10px #ff536e55;display:none;pointer-events:none;z-index:2}
-#lockMarker:before,#lockMarker:after{content:"";position:absolute;background:#ff536e;box-shadow:0 0 5px #ff536e}
-#lockMarker:before{left:50%;top:-9px;width:2px;height:70px;transform:translateX(-50%)}
-#lockMarker:after{top:50%;left:-9px;width:70px;height:2px;transform:translateY(-50%)}
+#lockMarker{position:fixed;left:50%;top:50%;width:43.2px;height:43.2px;transform:translate(-50%,-50%);border:2px solid #ff536e;border-radius:50%;box-shadow:0 0 10px #ff536e99,inset 0 0 10px #ff536e55;display:none;pointer-events:none;z-index:2}
 .lockCorner{position:absolute;width:8px;height:8px;border-color:#ffe17b;border-style:solid}
 .lockCorner.a{top:-4px;left:-4px;border-width:2px 0 0 2px}.lockCorner.b{top:-4px;right:-4px;border-width:2px 2px 0 0}.lockCorner.c{bottom:-4px;left:-4px;border-width:0 0 2px 2px}.lockCorner.d{bottom:-4px;right:-4px;border-width:0 2px 2px 0}
 #message{position:absolute;top:22%;left:0;right:0;text-align:center;font-size:clamp(20px,5vw,34px);font-weight:1000;letter-spacing:.1em}
@@ -78,8 +74,8 @@ select{width:100%;padding:12px;border-radius:9px;border:1px solid #66869b;backgr
   <div class="panel center"><div style="display:flex;align-items:center;justify-content:center;gap:10px"><span class="small">TIME</span><span class="val" id="time">180</span></div></div>
  </div>
  <div id="costHud" aria-label="チームコスト">
-  <div class="costRow"><span class="costTeam">自 TEAM</span><div class="costTrack"><div class="costFill" id="costFillA"></div><div class="costTicks"><i></i><i></i><i></i><i></i><i></i><i></i></div></div><span class="costNum" id="costA">6000</span></div>
-  <div class="costRow"><span class="costTeam">敵 TEAM</span><div class="costTrack"><div class="costFill" id="costFillB"></div><div class="costTicks"><i></i><i></i><i></i><i></i><i></i><i></i></div></div><span class="costNum" id="costB">6000</span></div>
+  <div class="costRow"><span class="costTeam">自 TEAM</span><div class="costTrack"><div class="costFill" id="costFillA"></div><div class="costTicks"><i></i><i></i><i></i><i></i><i></i></div></div><span class="costNum" id="costA">6000</span></div>
+  <div class="costRow"><span class="costTeam">敵 TEAM</span><div class="costTrack"><div class="costFill" id="costFillB"></div><div class="costTicks"><i></i><i></i><i></i><i></i><i></i></div></div><span class="costNum" id="costB">6000</span></div>
  </div>
  <div id="lockInfo">LOCK: ENEMY 1</div><div id="lockMarker" aria-hidden="true"><i class="lockCorner a"></i><i class="lockCorner b"></i><i class="lockCorner c"></i><i class="lockCorner d"></i></div><div id="message" style="display:none"></div><div id="submessage" style="display:none"></div>
  <div id="unitHpLayer"></div>
@@ -199,15 +195,30 @@ function animateAction(u,name,duration){u.action=name;u.actionTime=duration; if(
 function addEffect(x,y,z,color,size=1,life=.25){
  const mesh=new THREE.Mesh(new THREE.SphereGeometry(size,8,8),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8}));mesh.position.set(x,y,z);scene.add(mesh);effects.push({mesh,life,max:life,size});
 }
+const MAX_SHOT_PITCH=Math.PI/3;
+const SHOT_TURN_RATE=THREE.MathUtils.degToRad(9);
+function shotDirection(origin,target,spread=0){
+ const dx=target.x-origin.x,dz=target.z-origin.z;
+ const horizontal=Math.hypot(dx,dz)||1;
+ const pitch=clamp(Math.atan2((target.y??0)-origin.y,horizontal),-MAX_SHOT_PITCH,MAX_SHOT_PITCH);
+ const yaw=Math.atan2(dx,dz)+spread,cp=Math.cos(pitch);
+ return new THREE.Vector3(Math.sin(yaw)*cp,Math.sin(pitch),Math.cos(yaw)*cp).normalize();
+}
+function createProjectile(u,spread,damage,speed,life,color,size=.16){
+ const t=targetFor(u);if(!t)return;
+ const origin=new THREE.Vector3(u.x-Math.sin(u.face)*.8,u.y+1.5,u.z-Math.cos(u.face)*.8);
+ const targetPoint=new THREE.Vector3(t.x,t.y+1.1,t.z);
+ const direction=shotDirection(origin,targetPoint,spread+(Math.random()-.5)*.035);
+ const mesh=new THREE.Mesh(new THREE.SphereGeometry(size,8,8),new THREE.MeshBasicMaterial({color,emissive:color,emissiveIntensity:1.3}));
+ mesh.position.copy(origin);scene.add(mesh);
+ shots.push({mesh,x:origin.x,y:origin.y,z:origin.z,vx:direction.x*speed,vy:direction.y*speed,vz:direction.z*speed,team:u.team,owner:u,damage,life,color,speed,target:t,turnRate:SHOT_TURN_RATE});
+ addEffect(origin.x,origin.y,origin.z,color,.25,.12);
+}
 function fire(u,spread=0,damage=null,speed=23){
  if(!u.alive||u.fire>0||u.stun>0||u.ammo<=0)return;const t=targetFor(u);if(!t)return;face(u,t);if(u.player)animateAction(u,'shoot',.22);
- let a=u.face+spread+(Math.random()-.5)*.035;
  const color=u.player?u.stats.color:(u.team===0?0x55ffc9:0xff536e);
- const mesh=new THREE.Mesh(new THREE.SphereGeometry(.16,8,8),new THREE.MeshBasicMaterial({color,emissive:color,emissiveIntensity:1.3}));
- mesh.position.set(u.x-Math.sin(a)*.8,1.5,u.z-Math.cos(a)*.8);scene.add(mesh);
- shots.push({mesh,x:mesh.position.x,y:1.5,z:mesh.position.z,vx:-Math.sin(a)*speed,vz:-Math.cos(a)*speed,team:u.team,owner:u,damage:damage??u.stats.shot,life:2,color});
+ createProjectile(u,spread,damage??u.stats.shot,speed,2,color);
  u.fire=u.stats.rate;u.ammo=Math.max(0,u.ammo-1);if(u.ammo<u.maxAmmo&&u.ammoReload<=0)u.ammoReload=u.stats.reload;
- addEffect(mesh.position.x,1.5,mesh.position.z,color,.25,.12);
 }
 function hit(u,damage,owner){
  if(!u.alive)return;u.hp-=damage;u.stun=.1;addEffect(u.x,1.4,u.z,owner.team===0?0x66eeff:0xff6476,.6,.2);
@@ -221,10 +232,10 @@ function hit(u,damage,owner){
 function melee(u){if(!u.alive||u.melee>0)return;const t=targetFor(u);if(!t)return;face(u,t);u.melee=.72;animateAction(u,'melee',.62);addEffect(u.x-u.mesh.position.x*.0,1.2,u.z,0xe9a0ff,.55,.18);let d=dist(u,t);if(d<3.5){hit(t,u.stats.melee,u);addEffect(t.x,1.4,t.z,0xe9a0ff,1.1,.22);t.x-=Math.sin(u.face)*1.1;t.z-=Math.cos(u.face)*1.1}}
 function special(u){if(!u.alive||u.special>0)return;const t=targetFor(u);if(!t)return;face(u,t);u.special=5;animateAction(u,'special',.85);addEffect(u.x,1.7,u.z,0xffdf67,1.3,.35);for(let i=-2;i<=2;i++)fireSpecialProjectile(u,u.face+i*.095,80)}
 function fireSpecialProjectile(u,a,damage){
- const color=0xffe17b,mesh=new THREE.Mesh(new THREE.SphereGeometry(.23,8,8),new THREE.MeshBasicMaterial({color,emissive:color,emissiveIntensity:1.4}));
- mesh.position.set(u.x-Math.sin(a),1.55,u.z-Math.cos(a));scene.add(mesh);shots.push({mesh,x:mesh.position.x,y:1.55,z:mesh.position.z,vx:-Math.sin(a)*27,vz:-Math.cos(a)*27,team:u.team,owner:u,damage,life:1.5,color});
+ const color=0xffe17b;
+ createProjectile(u,a-u.face,damage,27,1.5,color,.23);
 }
-function doStep(u){if(!u.alive||u.step>0||u.boost<130)return;u.step=.32;u.boost-=130;let x=move.x,z=move.y;const fX=-Math.sin(u.face),fZ=-Math.cos(u.face),rX=Math.cos(u.face),rZ=-Math.sin(u.face);let wx=rX*x+fX*z,wz=rZ*x+fZ*z;if(Math.hypot(wx,wz)<.2){wx=-fX;wz=-fZ}const m=Math.hypot(wx,wz)||1;u.vx=wx/m*22;u.vz=wz/m*22;u.stun=.04;animateAction(u,'step',.28);addEffect(u.x,.7,u.z,0x7ebcff,.8,.2)}
+function doStep(u){if(!u.alive||u.step>0||u.boost<130)return;for(const shot of shots){if(shot.target===u)shot.target=null;}u.step=.32;u.boost-=130;let x=move.x,z=move.y;const fX=-Math.sin(u.face),fZ=-Math.cos(u.face),rX=Math.cos(u.face),rZ=-Math.sin(u.face);let wx=rX*x+fX*z,wz=rZ*x+fZ*z;if(Math.hypot(wx,wz)<.2){wx=-fX;wz=-fZ}const m=Math.hypot(wx,wz)||1;u.vx=wx/m*22;u.vz=wz/m*22;u.stun=.04;animateAction(u,'step',.28);addEffect(u.x,.7,u.z,0x7ebcff,.8,.2)}
 function startHorizontalBoost(u){if(!u||!u.alive||u.boost<60)return;u.boostDash=true;u.boostLift=false;u.dashTime=0;u.grounded=false;u.vy=0;let x=move.x,z=move.y;const fx=-Math.sin(u.face),fz=-Math.cos(u.face),rx=Math.cos(u.face),rz=-Math.sin(u.face);let wx=rx*x+fx*z,wz=rz*x+fz*z;if(Math.hypot(wx,wz)<.18){wx=fx;wz=fz}const m=Math.hypot(wx,wz)||1;u.dashVX=wx/m;u.dashVZ=wz/m;u.vx=u.dashVX*21;u.vz=u.dashVZ*21;animateAction(u,'boost',.3);addEffect(u.x,1.1,u.z,0x56eaff,.8,.22)}
 function beginBoostPress(){const u=units[0];if(!u||!u.alive||u.boost<60)return;const now=performance.now();boostPressActive=true;boostPressStarted=now;boostMode=(now-lastBoostTap<132)?'dash':'pending';lastBoostTap=now;if(boostMode==='dash')startHorizontalBoost(u);else boostHoldTimer=setTimeout(()=>{if(boostPressActive&&boostMode==='pending'){boostMode='lift';if(u.grounded){u.vy=5.5;u.grounded=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}u.boostLift=true}},170)}
 function endBoostPress(){const u=units[0];if(!boostPressActive)return;boostPressActive=false;clearTimeout(boostHoldTimer);if(u){if(boostMode==='pending'&&u.grounded&&u.boost>=60){u.vy=10.5;u.grounded=false;u.boostLift=false;u.boostDash=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}else if(boostMode==='lift'){u.boostLift=false}else if(boostMode==='dash'){u.boostDash=false}}boostMode='';}
@@ -267,7 +278,14 @@ function update(dt){
 
   if(u.player){const glow=u.mesh.userData.glow;glow.emissive=new THREE.Color(u.stats.color);glow.emissiveIntensity=1.2+Math.sin(elapsed*8)*.3}
  }
- for(let i=shots.length-1;i>=0;i--){const s=shots[i];s.x+=s.vx*dt;s.z+=s.vz*dt;s.life-=dt;s.mesh.position.set(s.x,s.y,s.z);let remove=s.life<=0||Math.abs(s.x)>arena/2||Math.abs(s.z)>arena/2;
+ for(let i=shots.length-1;i>=0;i--){const s=shots[i];
+  if(s.target&&s.target.alive){
+   const aim=shotDirection({x:s.x,y:s.y,z:s.z},{x:s.target.x,y:s.target.y+1.1,z:s.target.z});
+   const current=new THREE.Vector3(s.vx,s.vy||0,s.vz).normalize();
+   const angle=current.angleTo(aim),maxTurn=(s.turnRate||SHOT_TURN_RATE)*dt;
+   if(angle>1e-6){const next=current.clone();if(angle<=maxTurn)next.copy(aim);else next.lerp(aim,maxTurn/angle).normalize();s.vx=next.x*s.speed;s.vy=next.y*s.speed;s.vz=next.z*s.speed;}
+  }
+  s.x+=s.vx*dt;s.y+=(s.vy||0)*dt;s.z+=s.vz*dt;s.life-=dt;s.mesh.position.set(s.x,s.y,s.z);let remove=s.life<=0||Math.abs(s.x)>arena/2||Math.abs(s.z)>arena/2;
   if(!remove)for(const u of units){if(u.alive&&u.team!==s.team&&Math.hypot(s.x-u.x,s.z-u.z)<1.1&&Math.abs(s.y-(u.y+1.1))<1.45){if(u.step<=0)hit(u,s.damage,s.owner);remove=true;break}}
   if(remove){scene.remove(s.mesh);shots.splice(i,1)}
  }
@@ -299,16 +317,35 @@ function render(now){requestAnimationFrame(render);const dt=Math.min(.04,(now-la
   camera.position.lerp(behind,.12);
   const look=t&&t.alive?new THREE.Vector3(t.x,t.y+1.55,t.z):new THREE.Vector3(p.x,p.y+1.2,p.z);
   camera.lookAt(look);
+  // Update the camera world matrix before projecting HUD anchors. Without this,
+  // projection can use the previous frame's camera transform during fast lateral dashes.
+  camera.updateMatrixWorld(true);
+  camera.updateProjectionMatrix();
+  updateUnitHp();
   const marker=$('lockMarker');
   if(started&&t&&t.alive){
-   const projected=new THREE.Vector3(t.x,t.y+2.65,t.z).project(camera);
+   // Anchor the lock marker to a point just above the target's torso, independent of the HP bar.
+   // Projecting this world-space point keeps it over the body from every camera angle.
+   const projected=new THREE.Vector3(t.x,t.y+1.35,t.z).project(camera);
    const visible=projected.z>-1&&projected.z<1&&Math.abs(projected.x)<1.2&&Math.abs(projected.y)<1.2;
+   const hp=hpEls[targetIndex];
    marker.style.display=visible?'block':'none';
-   marker.style.left=((projected.x*.5+.5)*innerWidth)+'px';
-   marker.style.top=((-projected.y*.5+.5)*innerHeight)+'px';
+   if(visible){
+    const markerX=(projected.x*.5+.5)*innerWidth;
+    const markerY=(-projected.y*.5+.5)*innerHeight;
+    marker.style.left=markerX+'px';
+    marker.style.top=markerY+'px';
+    // HP bar follows the marker with a fixed gap; the marker is the positioning anchor.
+    // .unitHp uses translate(-50%,-100%), so `top` is its bottom edge.
+    if(hp){
+     hp.style.display='block';
+     hp.style.left=markerX+'px';
+     hp.style.top=(markerY-43.2/2-10)+'px';
+    }
+   }
   }else marker.style.display='none';
  }else $('lockMarker').style.display='none';
- updateUnitHp();renderer.render(scene,camera)}
+ renderer.render(scene,camera)}
 requestAnimationFrame(render);
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7))});
 const zone=$('stickZone'),stick=$('stick');let stickId=null;
