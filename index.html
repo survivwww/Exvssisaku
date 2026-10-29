@@ -12,6 +12,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071321;fon
 #view{position:fixed;inset:0;width:100%;height:100%;display:block}
 #hud{position:fixed;inset:0;pointer-events:none;text-shadow:0 2px 3px #000}
 .top{position:absolute;top:max(7px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px}
+#costHud{position:absolute;top:max(7px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));width:min(190px,43vw);padding:6px 7px;background:#06111c9c;border:1px solid #bceaff35;border-radius:5px;backdrop-filter:blur(3px)}
+.costRow{display:grid;grid-template-columns:25px minmax(0,1fr) 37px;align-items:center;gap:5px;height:13px;font:900 8px/1 ui-monospace,SFMono-Regular,monospace}
+.costTeam{letter-spacing:.03em}.costTrack{height:8px;position:relative;overflow:hidden;background:#142333;border:1px solid #c7e6f322;border-radius:1px}
+.costFill{height:100%;width:100%;transition:width .15s linear;position:relative}
+#costFillA{background:linear-gradient(90deg,#0879ff,#5cbaff)}#costFillB{background:linear-gradient(90deg,#d9233f,#ff6676)}
+.costTrack:after{content:"";position:absolute;inset:0;background:linear-gradient(to right,transparent calc(16.666% - .5px),#d7f4ff66 calc(16.666% - .5px),#d7f4ff66 calc(16.666% + .5px),transparent calc(16.666% + .5px),transparent calc(33.333% - .5px),#d7f4ff66 calc(33.333% - .5px),#d7f4ff66 calc(33.333% + .5px),transparent calc(33.333% + .5px),transparent calc(50% - .5px),#d7f4ff66 calc(50% - .5px),#d7f4ff66 calc(50% + .5px),transparent calc(50% + .5px),transparent calc(66.666% - .5px),#d7f4ff66 calc(66.666% - .5px),#d7f4ff66 calc(66.666% + .5px),transparent calc(66.666% + .5px),transparent calc(83.333% - .5px),#d7f4ff66 calc(83.333% - .5px),#d7f4ff66 calc(83.333% + .5px),transparent calc(83.333% + .5px));pointer-events:none}
+.costNum{text-align:right;font-size:9px;font-weight:950;font-variant-numeric:tabular-nums}
 .panel{background:#06111c72;border:1px solid #bceaff35;border-radius:5px;padding:4px 9px;backdrop-filter:blur(3px);min-width:0}
 .center{min-width:108px;text-align:center}.small{font-size:8px;letter-spacing:.13em;color:#c9e9f5}.val{font-size:13px;font-weight:950;white-space:nowrap}
 .bar{height:5px;background:#263849;border-radius:2px;overflow:hidden;margin-top:3px}.fill{height:100%;background:linear-gradient(90deg,#43d9c6,#c4fff0);width:100%}
@@ -64,8 +71,9 @@ select{width:100%;padding:12px;border-radius:9px;border:1px solid #66869b;backgr
 <canvas id="view"></canvas>
 <div id="hud">
  <div class="top">
-  <div class="panel center"><div style="display:flex;align-items:center;justify-content:center;gap:10px"><span class="small">TIME</span><span class="val" id="time">180</span><span class="small">COST</span><span class="val"><span id="costA">6000</span>:<span id="costB">6000</span></span></div></div>
+  <div class="panel center"><div style="display:flex;align-items:center;justify-content:center;gap:10px"><span class="small">TIME</span><span class="val" id="time">180</span></div></div>
  </div>
+ <div id="costHud" aria-label="チーム残りコスト"><div class="costRow"><span class="costTeam" style="color:#65baff">自チーム</span><div class="costTrack"><div class="costFill" id="costFillA"></div></div><span class="costNum" id="costA">6000</span></div><div class="costRow" style="margin-top:3px"><span class="costTeam" style="color:#ff6578">敵チーム</span><div class="costTrack"><div class="costFill" id="costFillB"></div></div><span class="costNum" id="costB">6000</span></div></div>
  <div id="lockInfo">LOCK: ENEMY 1</div><div id="lockMarker" aria-hidden="true"><i class="lockCorner a"></i><i class="lockCorner b"></i><i class="lockCorner c"></i><i class="lockCorner d"></i></div><div id="message" style="display:none"></div><div id="submessage" style="display:none"></div>
  <div id="unitHpLayer"></div>
  <div id="combatHud"><div id="boostLabel">BOOST</div><div id="boostBar"><div id="boostFill"></div></div></div>
@@ -211,7 +219,7 @@ function fireSpecialProjectile(u,a,damage){
 }
 function doStep(u){if(!u.alive||u.step>0||u.boost<130)return;u.step=.32;u.boost-=130;let x=move.x,z=move.y;const fX=-Math.sin(u.face),fZ=-Math.cos(u.face),rX=Math.cos(u.face),rZ=-Math.sin(u.face);let wx=rX*x+fX*z,wz=rZ*x+fZ*z;if(Math.hypot(wx,wz)<.2){wx=-fX;wz=-fZ}const m=Math.hypot(wx,wz)||1;u.vx=wx/m*22;u.vz=wz/m*22;u.stun=.04;animateAction(u,'step',.28);addEffect(u.x,.7,u.z,0x7ebcff,.8,.2)}
 function startHorizontalBoost(u){if(!u||!u.alive||u.boost<60)return;u.boostDash=true;u.boostLift=false;u.dashTime=0;u.grounded=false;u.vy=0;let x=move.x,z=move.y;const fx=-Math.sin(u.face),fz=-Math.cos(u.face),rx=Math.cos(u.face),rz=-Math.sin(u.face);let wx=rx*x+fx*z,wz=rz*x+fz*z;if(Math.hypot(wx,wz)<.18){wx=fx;wz=fz}const m=Math.hypot(wx,wz)||1;u.dashVX=wx/m;u.dashVZ=wz/m;u.vx=u.dashVX*21;u.vz=u.dashVZ*21;animateAction(u,'boost',.3);addEffect(u.x,1.1,u.z,0x56eaff,.8,.22)}
-function beginBoostPress(){const u=units[0];if(!u||!u.alive||u.boost<60)return;const now=performance.now();boostPressActive=true;boostPressStarted=now;boostMode=(now-lastBoostTap<330)?'dash':'pending';lastBoostTap=now;if(boostMode==='dash')startHorizontalBoost(u);else boostHoldTimer=setTimeout(()=>{if(boostPressActive&&boostMode==='pending'){boostMode='lift';if(u.grounded){u.vy=5.5;u.grounded=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}u.boostLift=true}},170)}
+function beginBoostPress(){const u=units[0];if(!u||!u.alive||u.boost<60)return;const now=performance.now();boostPressActive=true;boostPressStarted=now;boostMode=(now-lastBoostTap<66)?'dash':'pending';lastBoostTap=now;if(boostMode==='dash')startHorizontalBoost(u);else boostHoldTimer=setTimeout(()=>{if(boostPressActive&&boostMode==='pending'){boostMode='lift';if(u.grounded){u.vy=5.5;u.grounded=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}u.boostLift=true}},170)}
 function endBoostPress(){const u=units[0];if(!boostPressActive)return;boostPressActive=false;clearTimeout(boostHoldTimer);if(u){if(boostMode==='pending'&&u.grounded&&u.boost>=60){u.vy=10.5;u.grounded=false;u.boostLift=false;u.boostDash=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}else if(boostMode==='lift'){u.boostLift=false}else if(boostMode==='dash'){u.boostDash=false}}boostMode='';}
 function update(dt){
  if(!started||over)return;elapsed+=dt;if(elapsed>=180){over=true;$('message').textContent=costA===costB?'DRAW':costA>costB?'TEAM A WIN':'TEAM B WIN';$('message').style.display='block';$('submessage').textContent='タイムアップ';$('submessage').style.display='block';$('restart').style.display='block';return}
@@ -260,7 +268,7 @@ function update(dt){
  updateHud();
 }
 function updateHud(){
- $('time').textContent=Math.max(0,Math.ceil(180-elapsed));$('costA').textContent=costA;$('costB').textContent=costB;
+ $('time').textContent=Math.max(0,Math.ceil(180-elapsed));$('costA').textContent=costA;$('costB').textContent=costB;$('costFillA').style.width=(Math.max(0,Math.min(1,costA/6000))*100)+'%';$('costFillB').style.width=(Math.max(0,Math.min(1,costB/6000))*100)+'%';
  const t=units[targetIndex];$('lockInfo').textContent='LOCK: '+(t&&t.alive?t.name:'AUTO TARGET');const p=units[0];
  if(p){$('boostFill').style.width=(p.boost/p.maxBoost*100)+'%';const arc=(id,ratio)=>$(id).style.setProperty('--arc-angle',(Math.max(0,Math.min(1,ratio))*90)+'deg');const reloadProgress=p.ammo<p.maxAmmo?Math.max(0,Math.min(1,1-p.ammoReload/Math.max(.01,p.stats.reload))):0;arc('shoot',(p.ammo+reloadProgress)/p.maxAmmo);arc('boost',p.boost/p.maxBoost);arc('melee',1-p.melee/.72);arc('special',1-p.special/5);arc('step',1-p.step/.32);arc('lock',1)}
 }
