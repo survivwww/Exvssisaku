@@ -173,13 +173,9 @@ function createUnitVisual(kind,color,player){
  if(kind==='light'&&prinzEugenTemplate){
   const model=THREE.SkeletonUtils.clone(prinzEugenTemplate);
   model.scale.setScalar(2.3/20.953943252563477);
-  // GLBモデルの前後を180度反転。外側のGroupはゲーム側の旋回処理に使用する。
-  const modelRoot=new THREE.Group();
-  model.rotation.y=Math.PI;
-  modelRoot.add(model);
   model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
-  modelRoot.userData.isPrinzEugen=true;
-  return modelRoot;
+  model.userData.isPrinzEugen=true;
+  return model;
  }
  return robotMesh(color,player);
 }
