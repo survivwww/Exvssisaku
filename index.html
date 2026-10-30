@@ -178,8 +178,9 @@ function createUnitVisual(kind,color,player){
  if(kind==='light'&&prinzEugenTemplate){
   const model=THREE.SkeletonUtils.clone(prinzEugenTemplate);
   const visualRoot=new THREE.Group();
-  // Keep the GLB aligned with the game's body-forward direction.
-  // The previous 180-degree visual-root rotation reversed the torso orientation.
+  // The GLB's authored forward axis is opposite to the game's forward axis.
+  // Rotate the complete visual model, while leaving the gameplay root untouched.
+  visualRoot.rotation.y=Math.PI;
   model.scale.setScalar(2.3/20.953943252563477);
   model.traverse(o=>{
    if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
