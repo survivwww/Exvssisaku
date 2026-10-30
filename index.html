@@ -178,8 +178,8 @@ function createUnitVisual(kind,color,player){
  if(kind==='light'&&prinzEugenTemplate){
   const model=THREE.SkeletonUtils.clone(prinzEugenTemplate);
   const visualRoot=new THREE.Group();
-  // Rotate only the visual model: the game-controlled root keeps its original axes.
-  visualRoot.rotation.y=Math.PI;
+  // Keep the GLB aligned with the game's body-forward direction.
+  // The previous 180-degree visual-root rotation reversed the torso orientation.
   model.scale.setScalar(2.3/20.953943252563477);
   model.traverse(o=>{
    if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
@@ -257,7 +257,7 @@ function face(u,t){if(!t)return;u.face=Math.atan2(u.x-t.x,u.z-t.z);if(!u.player)
 function angleDelta(a,b){return Math.atan2(Math.sin(a-b),Math.cos(a-b))}
 function applyHeadTracking(u,t){
  const ud=u.mesh.userData,head=ud.headBone,rest=ud.headRestQuaternion;if(!head||!rest||!t)return;
- const yaw=clamp(angleDelta(u.face,u.bodyYaw+Math.PI),-2.45,2.45);
+ const yaw=clamp(angleDelta(u.face,u.bodyYaw),-2.45,2.45);
  const horizontal=Math.hypot(t.x-u.x,t.z-u.z);
  const pitch=clamp(Math.atan2((t.y+1.45)-(u.y+2.05),Math.max(.001,horizontal)),-.42,.42);
  const delta=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch,yaw,0,'YXZ'));
