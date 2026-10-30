@@ -228,7 +228,7 @@ function robotMesh(color,player=false){
 }
 function spawn(name,team,x,z,kind='balanced',player=false){
  const s=stats[kind]||stats.balanced,mesh=createUnitVisual(kind,player?s.color:(team===0?0x47f0bb:0xff586f),player);mesh.position.set(x,groundHeight(x,z),z);scene.add(mesh);
- return {name,team,x,z,y:groundHeight(x,z),vy:0,vx:0,vz:0,grounded:true,boostDash:false,boostLift:false,dashTime:0,dashReleaseTimer:0,landingStun:0,landingRefillDone:false,lastBoostTap:0,ammo:s.ammo,maxAmmo:s.ammo,ammoReload:0,action:'idle',actionTime:0,hp:s.hp,maxHp:s.hp,alive:true,respawn:0,mesh,player,kind,stats:s,fire:0,melee:0,special:0,boost:s.boost,maxBoost:s.boost,boosting:0,step:0,stun:0,face:team===0?Math.PI:0,ai:Math.random()*5,respawnCost:s.cost};
+ return {name,team,x,z,y:groundHeight(x,z),vy:0,vx:0,vz:0,grounded:true,boostDash:false,boostLift:false,dashPhase:'',dashInitialTimer:0,dashTime:0,dashReleaseTimer:0,landingStun:0,landingRefillDone:false,lastBoostTap:0,ammo:s.ammo,maxAmmo:s.ammo,ammoReload:0,action:'idle',actionTime:0,hp:s.hp,maxHp:s.hp,alive:true,respawn:0,mesh,player,kind,stats:s,fire:0,melee:0,special:0,boost:s.boost,maxBoost:s.boost,boosting:0,step:0,stun:0,face:team===0?Math.PI:0,ai:Math.random()*5,respawnCost:s.cost};
 }
 function removeUnit(u){scene.remove(u.mesh);u.alive=false;u.mesh.visible=false}
 function reset(){
@@ -266,7 +266,7 @@ function beginLandingStun(u){
  const depletion=clamp(1-u.boost/u.maxBoost,0,1);
  u.landingStun=u.boost<=0?0.7:0.45+0.20*depletion;
  u.landingRefillDone=false;u.vx=0;u.vz=0;u.vy=0;
- u.boostDash=false;u.boostLift=false;u.dashReleaseTimer=0;
+ u.boostDash=false;u.boostLift=false;u.dashPhase='';u.dashInitialTimer=0;u.dashReleaseTimer=0;
  // Discard held inputs so nothing buffered during landing recovery fires afterward.
  move.x=move.y=0;stickId=null;fireHeld=false;keys={};
  if(boostPressActive){boostPressActive=false;boostMode='';clearTimeout(boostHoldTimer)}
@@ -357,22 +357,22 @@ function fireSpecialProjectile(u,a,damage){
 function doStep(u){if(!u.alive||u.step>0||u.landingStun>0||u.boost<130)return;for(const shot of shots){if(shot.target===u)shot.target=null;}u.step=.32;u.boost-=130;let x=move.x,z=move.y;const worldMove=stickDirectionForUnit(u,x,z);let wx=worldMove.x,wz=worldMove.z;if(Math.hypot(wx,wz)<.2){const fallback=stickDirectionForUnit(u,0,-1);wx=fallback.x;wz=fallback.z}const m=Math.hypot(wx,wz)||1;u.vx=wx/m*22;u.vz=wz/m*22;u.stun=.04;animateAction(u,'step',.28);addEffect(u.x,.7,u.z,0x7ebcff,.8,.2)}
 function startHorizontalBoost(u){
  if(!u||!u.alive||u.landingStun>0||u.boost<60)return;
- u.boostDash=true;u.boostLift=false;u.dashReleaseTimer=0;u.dashTime=0;u.grounded=false;u.vy=0;
+ u.boostDash=true;u.boostLift=false;u.dashPhase='initial';u.dashInitialTimer=.7;u.dashReleaseTimer=0;u.dashTime=0;u.grounded=false;u.vy=0;
  let d=stickDirectionForUnit(u,move.x,move.y),m=Math.hypot(d.x,d.z);
  if(m<.18){const speed=Math.hypot(u.vx,u.vz);if(speed>.1){d={x:u.vx/speed,z:u.vz/speed};m=1}else{d=stickDirectionForUnit(u,0,1);m=Math.hypot(d.x,d.z)||1}}
- u.dashVX=d.x/m;u.dashVZ=d.z/m;u.vx=u.dashVX*21;u.vz=u.dashVZ*21;
+ u.dashVX=d.x/m;u.dashVZ=d.z/m;u.vx=u.dashVX*25.2;u.vz=u.dashVZ*25.2;
  u.y=Math.max(u.y,groundHeight(u.x,u.z)+.22);
  animateAction(u,'boost',.3);addEffect(u.x,1.1,u.z,0x56eaff,.8,.22)
 }
 function beginBoostPress(){const u=units[0];if(!u||!u.alive||u.landingStun>0||u.boost<60)return;const now=performance.now();boostPressActive=true;boostPressStarted=now;boostMode=(now-lastBoostTap<200)?'dash':'pending';lastBoostTap=now;if(boostMode==='dash')startHorizontalBoost(u);else boostHoldTimer=setTimeout(()=>{if(boostPressActive&&boostMode==='pending'&&u.landingStun<=0){boostMode='lift';if(u.grounded){u.vy=5.5;u.grounded=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}u.boostLift=true}},170)}
-function endBoostPress(){const u=units[0];if(!boostPressActive)return;boostPressActive=false;clearTimeout(boostHoldTimer);if(u){if(boostMode==='pending'&&u.grounded&&u.boost>=60){u.vy=10.5;u.grounded=false;u.boostLift=false;u.boostDash=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}else if(boostMode==='lift'){u.boostLift=false}else if(boostMode==='dash'&&u.boostDash){u.dashReleaseTimer=.7}}boostMode='';}
+function endBoostPress(){const u=units[0];if(!boostPressActive)return;boostPressActive=false;clearTimeout(boostHoldTimer);if(u){if(boostMode==='pending'&&u.grounded&&u.boost>=60){u.vy=10.5;u.grounded=false;u.boostLift=false;u.boostDash=false;u.dashPhase='';u.dashInitialTimer=0;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}else if(boostMode==='lift'){u.boostLift=false}}boostMode='';}
 function update(dt){
  if(!started||over)return;elapsed+=dt;if(elapsed>=180){over=true;$('message').textContent=costA===costB?'DRAW':costA>costB?'TEAM A WIN':'TEAM B WIN';$('message').style.display='block';$('submessage').textContent='タイムアップ';$('submessage').style.display='block';$('restart').style.display='block';return}
  for(const u of units){
   u.fire=Math.max(0,u.fire-dt);if(u.ammo<u.maxAmmo){u.ammoReload-=dt;if(u.ammoReload<=0){u.ammo++;u.ammoReload=u.ammo<u.maxAmmo?u.stats.reload:0}}u.melee=Math.max(0,u.melee-dt);u.special=Math.max(0,u.special-dt);u.stun=Math.max(0,u.stun-dt);u.step=Math.max(0,u.step-dt);
   if(u.landingStun>0){u.landingStun=Math.max(0,u.landingStun-dt);if(u.landingStun<=.1&&!u.landingRefillDone){u.boost=u.maxBoost;u.landingRefillDone=true}}
   if(u.grounded&&u.landingStun<=0)u.boost=Math.min(u.maxBoost,u.boost+dt*u.stats.regen);
-  if(!u.alive){u.respawn-=dt;if(u.respawn<=0){const teamCost=u.team===0?costA:costB;if(teamCost>0){u.alive=true;u.hp=u.maxHp;u.mesh.visible=true;scene.add(u.mesh);u.x=u.team===0?-24+Math.random()*5:24+Math.random()*5;u.z=Math.random()*18-9;u.y=groundHeight(u.x,u.z);u.vy=0;u.vx=0;u.vz=0;u.grounded=true;u.boostDash=false;u.dashReleaseTimer=0;u.landingStun=0;u.action='idle';u.actionTime=0;u.mesh.position.set(u.x,u.y,u.z);u.stun=.65;addEffect(u.x,1,u.z,0xffffff,1,.3)}else{u.respawn=999}}continue}
+  if(!u.alive){u.respawn-=dt;if(u.respawn<=0){const teamCost=u.team===0?costA:costB;if(teamCost>0){u.alive=true;u.hp=u.maxHp;u.mesh.visible=true;scene.add(u.mesh);u.x=u.team===0?-24+Math.random()*5:24+Math.random()*5;u.z=Math.random()*18-9;u.y=groundHeight(u.x,u.z);u.vy=0;u.vx=0;u.vz=0;u.grounded=true;u.boostDash=false;u.dashPhase='';u.dashInitialTimer=0;u.dashReleaseTimer=0;u.landingStun=0;u.action='idle';u.actionTime=0;u.mesh.position.set(u.x,u.y,u.z);u.stun=.65;addEffect(u.x,1,u.z,0xffffff,1,.3)}else{u.respawn=999}}continue}
   // Landing recovery accepts no movement, boost, weapon, step, or queued input.
   if(u.player&&u.landingStun>0){
    u.vx=0;u.vz=0;u.vy=0;u.grounded=true;u.y=groundHeight(u.x,u.z);
@@ -401,38 +401,63 @@ function update(dt){
   const speed=u.stats.speed;
   if(u.player){
    const wasGrounded=u.grounded;
-   const dashHeld=boostPressActive&&boostMode==='dash';
-   if(u.dashReleaseTimer>0&&!dashHeld)u.dashReleaseTimer=Math.max(0,u.dashReleaseTimer-dt);
-   const dashActive=u.boostDash&&(dashHeld||u.dashReleaseTimer>0)&&u.boost>0;
+   // Initial boost lasts 0.7 s from the second tap, regardless of when the
+   // boost button is released. At its end, the joystick must still be held
+   // to enter sustained boost.
+   if(u.boostDash&&u.dashPhase==='initial'){
+    u.dashInitialTimer=Math.max(0,u.dashInitialTimer-dt);
+    if(u.dashInitialTimer<=0){
+     if(stickId!==null)u.dashPhase='sustain';
+     else{u.boostDash=false;u.dashPhase='';}
+    }
+   }
+   // Releasing the movement stick ends sustained boost immediately.
+   if(u.boostDash&&u.dashPhase==='sustain'&&stickId===null){u.boostDash=false;u.dashPhase='';}
+   const dashActive=u.boostDash&&(u.dashPhase==='initial'||u.dashPhase==='sustain')&&u.boost>0;
    if(dashActive){
-    if(Math.hypot(mx,mz)>.05){const turned=rotateDirectionToward(u.dashVX,u.dashVZ,mx,mz,Math.PI*dt);u.dashVX=turned.x;u.dashVZ=turned.z}
-    u.vx=u.dashVX*21;u.vz=u.dashVZ*21;u.vy=0;
+    if(Math.hypot(mx,mz)>.05){
+     const turnRate=THREE.MathUtils.degToRad(u.dashPhase==='initial'?180:120);
+     const turned=rotateDirectionToward(u.dashVX,u.dashVZ,mx,mz,turnRate*dt);u.dashVX=turned.x;u.dashVZ=turned.z;
+    }
+    const dashSpeed=u.dashPhase==='initial'?25.2:21;
+    u.vx=u.dashVX*dashSpeed;u.vz=u.dashVZ*dashSpeed;u.vy=0;
     u.boost=Math.max(0,u.boost-dt*330);
-    if(u.boost<=0){u.boostDash=false;u.dashReleaseTimer=0;if(dashHeld){boostPressActive=false;boostMode=''}}
+    if(u.boost<=0){u.boostDash=false;u.dashPhase='';u.dashInitialTimer=0;}
    }else if(u.boostLift&&boostPressActive&&boostMode==='lift'&&u.boost>0){
     u.vy=Math.min(8.5,u.vy+10*dt);u.boost=Math.max(0,u.boost-dt*270);
     if(u.boost<=0)u.boostLift=false;
    }else{
-    u.boostDash=false;u.boostLift=false;u.vy-=24*dt;
+    u.boostDash=false;u.boostLift=false;
     const inputMag=Math.hypot(mx,mz);
-    if(wasGrounded&&inputMag>.05){
-     let currentSpeed=Math.hypot(u.vx,u.vz);const targetSpeed=inputMag*speed;
-     currentSpeed+=(targetSpeed-currentSpeed)*Math.min(1,30*dt);
-     if(currentSpeed<.05){u.vx=mx/inputMag*currentSpeed;u.vz=mz/inputMag*currentSpeed}
-     else{const turned=rotateDirectionToward(u.vx/currentSpeed,u.vz/currentSpeed,mx,mz,THREE.MathUtils.degToRad(360)*dt);u.vx=turned.x*currentSpeed;u.vz=turned.z*currentSpeed}
-    }else if(wasGrounded&&inputMag<=.05){u.vx*=Math.max(0,1-dt*5.5);u.vz*=Math.max(0,1-dt*5.5)}
-    else{u.vx+=(mx*speed-u.vx)*Math.min(1,10*dt);u.vz+=(mz*speed-u.vz)*Math.min(1,10*dt)}
+    if(wasGrounded){
+     // Ground movement follows the terrain profile directly in both uphill
+     // and downhill travel; gravity must not turn a slope descent into a fall.
+     u.vy=0;
+     if(inputMag>.05){
+      let currentSpeed=Math.hypot(u.vx,u.vz);const targetSpeed=inputMag*speed;
+      currentSpeed+=(targetSpeed-currentSpeed)*Math.min(1,30*dt);
+      if(currentSpeed<.05){u.vx=mx/inputMag*currentSpeed;u.vz=mz/inputMag*currentSpeed}
+      else{const turned=rotateDirectionToward(u.vx/currentSpeed,u.vz/currentSpeed,mx,mz,THREE.MathUtils.degToRad(180)*dt);u.vx=turned.x*currentSpeed;u.vz=turned.z*currentSpeed}
+     }else{u.vx*=Math.max(0,1-dt*5.5);u.vz*=Math.max(0,1-dt*5.5)}
+    }else{
+     u.vy-=24*dt;
+     u.vx+=(mx*speed-u.vx)*Math.min(1,10*dt);u.vz+=(mz*speed-u.vz)*Math.min(1,10*dt);
+    }
    }
    if(u.step>0){u.vx*=Math.max(0,1-dt*1.5);u.vz*=Math.max(0,1-dt*1.5)}
    const oldX=u.x,oldZ=u.z;u.x+=u.vx*dt;u.z+=u.vz*dt;u.y+=u.vy*dt;
    u.x=clamp(u.x,-arena/2+1,arena/2-1);u.z=clamp(u.z,-arena/2+1,arena/2-1);resolveBuildingCollision(u,oldX,oldZ);
    const ground=groundHeight(u.x,u.z);
-   const stillDash=u.boostDash&&((boostPressActive&&boostMode==='dash')||u.dashReleaseTimer>0)&&u.boost>0;
+   const stillDash=u.boostDash&&(u.dashPhase==='initial'||u.dashPhase==='sustain')&&u.boost>0;
    if(stillDash){
-    // Stay just above the terrain and climb rising ground without landing or slowing.
+    // On rising terrain, skim just above the surface. On descending terrain,
+    // preserve the current altitude for a level horizontal dash.
     u.y=Math.max(u.y,ground+.22);u.vy=0;u.grounded=false;
+   }else if(wasGrounded&&!u.boostLift){
+    // A grounded walk follows the exact terrain height downhill as well as uphill.
+    u.y=ground;u.vy=0;u.grounded=true;
    }else if(u.y<=ground){
-    u.y=ground;u.vy=0;u.grounded=true;u.boostDash=false;u.boostLift=false;u.dashReleaseTimer=0;u.dashTime=0;
+    u.y=ground;u.vy=0;u.grounded=true;u.boostDash=false;u.dashPhase='';u.dashInitialTimer=0;u.boostLift=false;u.dashReleaseTimer=0;u.dashTime=0;
     if(!wasGrounded)beginLandingStun(u);
    }else u.grounded=false;
   }else{const oldX=u.x,oldZ=u.z;u.vx+=(mx*speed-u.vx)*Math.min(1,5*dt);u.vz+=(mz*speed-u.vz)*Math.min(1,5*dt);u.x+=u.vx*dt;u.z+=u.vz*dt;u.x=clamp(u.x,-arena/2+1,arena/2-1);u.z=clamp(u.z,-arena/2+1,arena/2-1);resolveBuildingCollision(u,oldX,oldZ);u.y=groundHeight(u.x,u.z);}
