@@ -160,13 +160,13 @@ const stats={
 let prinzEugenTemplate=null;
 const modelStatus=$('modelStatus'),startButton=$('start');
 const gltfLoader=new THREE.GLTFLoader();
-gltfLoader.load('prinzeugen(1).glb',gltf=>{
+gltfLoader.load('prinzeugen.glb',gltf=>{
  prinzEugenTemplate=gltf.scene;
  modelStatus.textContent='プリンツ・オイゲンのモデル読み込み完了';
  startButton.disabled=false;startButton.textContent='出撃する';
 },undefined,error=>{
  console.error('Prinz Eugen GLB load failed:',error);
- modelStatus.textContent='モデルを読み込めません。index.htmlとprinzeugen(1).glbを同じフォルダに置いてください。';
+ modelStatus.textContent='モデルを読み込めません。index.htmlとprinzeugen.glbを同じフォルダに置いてください。';
  startButton.disabled=false;startButton.textContent='簡易モデルで出撃';
 });
 function createUnitVisual(kind,color,player){
