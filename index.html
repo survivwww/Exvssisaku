@@ -236,6 +236,12 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
 function targetFor(u){let opts=units.filter(v=>v.team!==u.team&&v.alive);if(!opts.length)return null;if(u.player){let t=units[targetIndex];return t&&t.alive?t:opts[0]}return opts.sort((a,b)=>dist(u,a)-dist(u,b))[0]}
 function face(u,t){if(!t)return;u.face=Math.atan2(u.x-t.x,u.z-t.z);u.mesh.rotation.y=u.face}
+// Stick input is always interpreted in the player's own facing basis, never the camera basis.
+function stickDirectionForUnit(u,x,z){
+ const forwardX=-Math.sin(u.face),forwardZ=-Math.cos(u.face);
+ const rightX=Math.cos(u.face),rightZ=-Math.sin(u.face);
+ return {x:rightX*x+forwardX*z,z:rightZ*x+forwardZ*z};
+}
 function updatePrinzHeadTracking(u,t,dt){
  if(!u.player||u.kind!=='light'||!t||!t.alive||!u.mesh.userData.isPrinzEugen)return;
  const rig=u.mesh.userData.headRig;if(!rig)return;
@@ -305,8 +311,8 @@ function fireSpecialProjectile(u,a,damage){
  const color=0xffe17b;
  createProjectile(u,a-u.face,damage,27,1.5,color,.23);
 }
-function doStep(u){if(!u.alive||u.step>0||u.boost<130)return;for(const shot of shots){if(shot.target===u)shot.target=null;}u.step=.32;u.boost-=130;let x=move.x,z=move.y;const fX=-Math.sin(u.face),fZ=-Math.cos(u.face),rX=Math.cos(u.face),rZ=-Math.sin(u.face);let wx=rX*x+fX*z,wz=rZ*x+fZ*z;if(Math.hypot(wx,wz)<.2){wx=-fX;wz=-fZ}const m=Math.hypot(wx,wz)||1;u.vx=wx/m*22;u.vz=wz/m*22;u.stun=.04;animateAction(u,'step',.28);addEffect(u.x,.7,u.z,0x7ebcff,.8,.2)}
-function startHorizontalBoost(u){if(!u||!u.alive||u.boost<60)return;u.boostDash=true;u.boostLift=false;u.dashTime=0;u.grounded=false;u.vy=0;let x=move.x,z=move.y;const fx=-Math.sin(u.face),fz=-Math.cos(u.face),rx=Math.cos(u.face),rz=-Math.sin(u.face);let wx=rx*x+fx*z,wz=rz*x+fz*z;if(Math.hypot(wx,wz)<.18){wx=fx;wz=fz}const m=Math.hypot(wx,wz)||1;u.dashVX=wx/m;u.dashVZ=wz/m;u.vx=u.dashVX*21;u.vz=u.dashVZ*21;animateAction(u,'boost',.3);addEffect(u.x,1.1,u.z,0x56eaff,.8,.22)}
+function doStep(u){if(!u.alive||u.step>0||u.boost<130)return;for(const shot of shots){if(shot.target===u)shot.target=null;}u.step=.32;u.boost-=130;let x=move.x,z=move.y;const worldMove=stickDirectionForUnit(u,x,z);let wx=worldMove.x,wz=worldMove.z;if(Math.hypot(wx,wz)<.2){const fallback=stickDirectionForUnit(u,0,-1);wx=fallback.x;wz=fallback.z}const m=Math.hypot(wx,wz)||1;u.vx=wx/m*22;u.vz=wz/m*22;u.stun=.04;animateAction(u,'step',.28);addEffect(u.x,.7,u.z,0x7ebcff,.8,.2)}
+function startHorizontalBoost(u){if(!u||!u.alive||u.boost<60)return;u.boostDash=true;u.boostLift=false;u.dashTime=0;u.grounded=false;u.vy=0;let x=move.x,z=move.y;const worldMove=stickDirectionForUnit(u,x,z);let wx=worldMove.x,wz=worldMove.z;if(Math.hypot(wx,wz)<.18){const fallback=stickDirectionForUnit(u,0,1);wx=fallback.x;wz=fallback.z}const m=Math.hypot(wx,wz)||1;u.dashVX=wx/m;u.dashVZ=wz/m;u.vx=u.dashVX*21;u.vz=u.dashVZ*21;animateAction(u,'boost',.3);addEffect(u.x,1.1,u.z,0x56eaff,.8,.22)}
 function beginBoostPress(){const u=units[0];if(!u||!u.alive||u.boost<60)return;const now=performance.now();boostPressActive=true;boostPressStarted=now;boostMode=(now-lastBoostTap<132)?'dash':'pending';lastBoostTap=now;if(boostMode==='dash')startHorizontalBoost(u);else boostHoldTimer=setTimeout(()=>{if(boostPressActive&&boostMode==='pending'){boostMode='lift';if(u.grounded){u.vy=5.5;u.grounded=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}u.boostLift=true}},170)}
 function endBoostPress(){const u=units[0];if(!boostPressActive)return;boostPressActive=false;clearTimeout(boostHoldTimer);if(u){if(boostMode==='pending'&&u.grounded&&u.boost>=60){u.vy=10.5;u.grounded=false;u.boostLift=false;u.boostDash=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}else if(boostMode==='lift'){u.boostLift=false}else if(boostMode==='dash'){u.boostDash=false}}boostMode='';}
 function update(dt){
@@ -322,8 +328,7 @@ function update(dt){
   if(u.player){
    mx=move.x;mz=move.y;if(keys.ArrowLeft||keys.a)mx-=1;if(keys.ArrowRight||keys.d)mx+=1;if(keys.ArrowUp||keys.w)mz+=1;if(keys.ArrowDown||keys.s)mz-=1;
    let m=Math.hypot(mx,mz);if(m>1){mx/=m;mz/=m}
-   const fx=-Math.sin(u.face),fz=-Math.cos(u.face),rx=Math.cos(u.face),rz=-Math.sin(u.face);
-   const localX=mx,localZ=mz;mx=rx*localX+fx*localZ;mz=rz*localX+fz*localZ;
+   const worldMove=stickDirectionForUnit(u,mx,mz);mx=worldMove.x;mz=worldMove.z;
   }else{
    const desired=d>12?1:d<7?-.7:.12;
    mx=dx/d*desired+Math.sin(elapsed*1.4+u.ai)*.22;mz=dz/d*desired+Math.cos(elapsed*1.25+u.ai)*.22;
@@ -399,15 +404,15 @@ function updateCombatCamera(p,t,dt){
 
  // Smooth the camera's orbit around the player, but do not let player
  // rotation itself steer the camera. This also softens lock-switch turns.
- const forwardBlend=1-Math.exp(-5.2*Math.max(0,dt));
+ const forwardBlend=1-Math.exp(-7.8*Math.max(0,dt));
  if(!combatCameraReady)cameraForward.copy(desiredForward);
  else cameraForward.lerp(desiredForward,forwardBlend).normalize();
 
  const targetDistance=hasTarget?Math.hypot(t.x-p.x,t.z-p.z):18;
  // The camera stays behind and above the player. Pull back slightly at
  // longer ranges so the target and the player's full model remain visible.
- const followDistance=9.0+clamp(targetDistance*.055,0,3.0);
- const cameraHeight=4.8+clamp(targetDistance*.018,0,.8);
+ const followDistance=7.2+clamp(targetDistance*.045,0,2.4);
+ const cameraHeight=4.2+clamp(targetDistance*.015,0,.65);
  cameraDesiredPosition.set(
   p.x-cameraForward.x*followDistance,
   p.y+cameraHeight,
@@ -418,7 +423,7 @@ function updateCombatCamera(p,t,dt){
   camera.position.copy(cameraDesiredPosition);
   combatCameraReady=true;
  }else{
-  const positionBlend=1-Math.exp(-6.8*Math.max(0,dt));
+  const positionBlend=1-Math.exp(-10.2*Math.max(0,dt));
   camera.position.lerp(cameraDesiredPosition,positionBlend);
  }
 
@@ -426,7 +431,7 @@ function updateCombatCamera(p,t,dt){
  // Looking directly at its torso keeps it centered while the camera
  // position follows the player from behind.
  if(hasTarget){
-  cameraDesiredLook.set(t.x,t.y+1.35,t.z);
+  cameraDesiredLook.set(t.x,t.y+1.35-targetDistance*.18,t.z);
  }else{
   cameraDesiredLook.set(
    p.x+cameraForward.x*12,
