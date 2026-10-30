@@ -30,6 +30,10 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071321;fon
 #boostLabel{font:900 8px/1.2 ui-monospace,SFMono-Regular,monospace;letter-spacing:.32em;color:#e1faff;-webkit-text-stroke:.25px #06283c;text-shadow:0 0 3px #000,0 0 8px #56eaff,0 0 13px #56eaff88}
 #boostBar{height:10px;margin-top:3px;position:relative;overflow:hidden;background:linear-gradient(180deg,#0b1a29dd,#07121fe8);border:1px solid #b8f4ff;box-shadow:0 0 0 1px #03101c,0 0 7px #35d8ff99;transform:skewX(-18deg);clip-path:polygon(7% 0,100% 0,93% 100%,0 100%)}
 #boostFill{height:100%;width:100%;background:linear-gradient(90deg,#16bde9,#65eaff 68%,#e5fdff);box-shadow:0 0 9px #56eaff;transition:width .08s linear}
+#boostBar.boost-yellow #boostFill{background:linear-gradient(90deg,#c99b16,#ffe36b 68%,#fff5bf);box-shadow:0 0 9px #ffe17b}
+#boostBar.boost-red #boostFill{background:linear-gradient(90deg,#c52b43,#ff6579 68%,#ffd0d5);box-shadow:0 0 9px #ff536e}
+#boostBar.overheat::after{content:"";position:absolute;inset:0;background:#ff536e66;pointer-events:none;animation:overheatPulse .55s ease-in-out infinite alternate}
+@keyframes overheatPulse{from{opacity:.12}to{opacity:.62}}
 #lockInfo{position:absolute;right:10px;top:64px;font:800 9px ui-monospace,SFMono-Regular,monospace;color:#ffeaa0;text-align:right;text-shadow:0 0 4px #000,0 0 8px #000}
 .unitHp{position:fixed;width:78px;transform:translate(-50%,-100%);pointer-events:none;text-align:center;z-index:1;font:900 9px/1.1 ui-monospace,SFMono-Regular,monospace;letter-spacing:.05em;color:#fff;-webkit-text-stroke:.25px #06111c;text-shadow:0 1px 2px #000,0 0 5px #000}
 .unitHp .hpName{margin-bottom:3px;white-space:nowrap}
@@ -224,7 +228,7 @@ function robotMesh(color,player=false){
 }
 function spawn(name,team,x,z,kind='balanced',player=false){
  const s=stats[kind]||stats.balanced,mesh=createUnitVisual(kind,player?s.color:(team===0?0x47f0bb:0xff586f),player);mesh.position.set(x,groundHeight(x,z),z);scene.add(mesh);
- return {name,team,x,z,y:groundHeight(x,z),vy:0,vx:0,vz:0,grounded:true,boostDash:false,boostLift:false,dashTime:0,lastBoostTap:0,ammo:s.ammo,maxAmmo:s.ammo,ammoReload:0,action:'idle',actionTime:0,hp:s.hp,maxHp:s.hp,alive:true,respawn:0,mesh,player,kind,stats:s,fire:0,melee:0,special:0,boost:s.boost,maxBoost:s.boost,boosting:0,step:0,stun:0,face:team===0?Math.PI:0,moveFace:team===0?Math.PI:0,ai:Math.random()*5,respawnCost:s.cost};
+ return {name,team,x,z,y:groundHeight(x,z),vy:0,vx:0,vz:0,grounded:true,boostDash:false,boostLift:false,dashTime:0,dashReleaseTimer:0,landingStun:0,landingRefillDone:false,lastBoostTap:0,ammo:s.ammo,maxAmmo:s.ammo,ammoReload:0,action:'idle',actionTime:0,hp:s.hp,maxHp:s.hp,alive:true,respawn:0,mesh,player,kind,stats:s,fire:0,melee:0,special:0,boost:s.boost,maxBoost:s.boost,boosting:0,step:0,stun:0,face:team===0?Math.PI:0,ai:Math.random()*5,respawnCost:s.cost};
 }
 function removeUnit(u){scene.remove(u.mesh);u.alive=false;u.mesh.visible=false}
 function reset(){
@@ -237,19 +241,36 @@ function reset(){
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
 function targetFor(u){let opts=units.filter(v=>v.team!==u.team&&v.alive);if(!opts.length)return null;if(u.player){let t=units[targetIndex];return t&&t.alive?t:opts[0]}return opts.sort((a,b)=>dist(u,a)-dist(u,b))[0]}
-function face(u,t){if(!t)return;u.face=Math.atan2(u.x-t.x,u.z-t.z);if(u.player)u.moveFace=u.face;u.mesh.rotation.y=u.face}
-// Stick input is always interpreted in the player's own facing basis, never the camera basis.
+function face(u,t){if(!t||u.player)return;u.face=Math.atan2(u.x-t.x,u.z-t.z);u.mesh.rotation.y=u.face}
+// Joystick axes are camera-relative: up follows the camera's horizontal view
+// direction and right follows the camera's screen-right direction.
 function stickDirectionForUnit(u,x,z){
- const basis=u.moveFace??u.face;
- const forwardX=-Math.sin(basis),forwardZ=-Math.cos(basis);
- const rightX=Math.cos(basis),rightZ=-Math.sin(basis);
- return {x:rightX*x+forwardX*z,z:rightZ*x+forwardZ*z};
+ let fx=cameraForward.x,fz=cameraForward.z;
+ const fl=Math.hypot(fx,fz);if(fl<1e-5){fx=-Math.sin(u.face);fz=-Math.cos(u.face)}else{fx/=fl;fz/=fl}
+ const rightX=-fz,rightZ=fx;
+ return {x:rightX*x+fx*z,z:rightZ*x+fz*z};
 }
-function turnBodyTowardMovement(u,dt){
- const speed=Math.hypot(u.vx,u.vz);if(speed<0.8)return;
- const targetFace=Math.atan2(-u.vx,-u.vz);
- const delta=Math.atan2(Math.sin(targetFace-u.face),Math.cos(targetFace-u.face));
- u.face+=delta*(1-Math.exp(-8*Math.max(0,dt)));
+function turnBodyTowardMovement(u){
+ // Match the body's visible heading directly to the actual horizontal velocity.
+ const speed=Math.hypot(u.vx,u.vz);if(speed<0.05)return;
+ u.face=Math.atan2(-u.vx,-u.vz);
+}
+function rotateDirectionToward(x,z,tx,tz,maxRadians){
+ const current=Math.atan2(z,x),target=Math.atan2(tz,tx);
+ const delta=Math.atan2(Math.sin(target-current),Math.cos(target-current));
+ const angle=current+clamp(delta,-maxRadians,maxRadians);
+ return {x:Math.cos(angle),z:Math.sin(angle)};
+}
+function beginLandingStun(u){
+ if(!u.player)return;
+ const depletion=clamp(1-u.boost/u.maxBoost,0,1);
+ u.landingStun=u.boost<=0?0.7:0.45+0.20*depletion;
+ u.landingRefillDone=false;u.vx=0;u.vz=0;u.vy=0;
+ u.boostDash=false;u.boostLift=false;u.dashReleaseTimer=0;
+ // Discard held inputs so nothing buffered during landing recovery fires afterward.
+ move.x=move.y=0;stickId=null;fireHeld=false;keys={};
+ if(boostPressActive){boostPressActive=false;boostMode='';clearTimeout(boostHoldTimer)}
+ stick.style.transform='translate(0,0)';
 }
 function updateUnitHeadTracking(u,t,dt){
  if(!t||!t.alive)return;
@@ -313,7 +334,7 @@ function createProjectile(u,spread,damage,speed,life,color,size=.16){
  addEffect(origin.x,origin.y,origin.z,color,.25,.12);
 }
 function fire(u,spread=0,damage=null,speed=23){
- if(!u.alive||u.fire>0||u.stun>0||u.ammo<=0)return;const t=targetFor(u);if(!t)return;face(u,t);if(u.player)animateAction(u,'shoot',.22);
+ if(!u.alive||u.fire>0||u.stun>0||u.landingStun>0||u.ammo<=0)return;const t=targetFor(u);if(!t)return;face(u,t);if(u.player)animateAction(u,'shoot',.22);
  const color=u.player?u.stats.color:(u.team===0?0x55ffc9:0xff536e);
  createProjectile(u,spread,damage??u.stats.shot,speed,2,color);
  u.fire=u.stats.rate;u.ammo=Math.max(0,u.ammo-1);if(u.ammo<u.maxAmmo&&u.ammoReload<=0)u.ammoReload=u.stats.reload;
@@ -327,21 +348,40 @@ function hit(u,damage,owner){
   if(costA<=0||costB<=0){over=true;$('message').textContent=costA<=0?'TEAM B WIN':'TEAM A WIN';$('message').style.display='block';$('submessage').textContent='チームコストが尽きました';$('submessage').style.display='block';$('restart').style.display='block'}
  }
 }
-function melee(u){if(!u.alive||u.melee>0)return;const t=targetFor(u);if(!t)return;face(u,t);u.melee=.72;animateAction(u,'melee',.62);addEffect(u.x-u.mesh.position.x*.0,1.2,u.z,0xe9a0ff,.55,.18);let d=dist(u,t);if(d<3.5){hit(t,u.stats.melee,u);addEffect(t.x,1.4,t.z,0xe9a0ff,1.1,.22);t.x-=Math.sin(u.face)*1.1;t.z-=Math.cos(u.face)*1.1}}
-function special(u){if(!u.alive||u.special>0)return;const t=targetFor(u);if(!t)return;face(u,t);u.special=5;animateAction(u,'special',.85);addEffect(u.x,1.7,u.z,0xffdf67,1.3,.35);for(let i=-2;i<=2;i++)fireSpecialProjectile(u,u.face+i*.095,80)}
+function melee(u){if(!u.alive||u.melee>0||u.landingStun>0)return;const t=targetFor(u);if(!t)return;face(u,t);u.melee=.72;animateAction(u,'melee',.62);addEffect(u.x-u.mesh.position.x*.0,1.2,u.z,0xe9a0ff,.55,.18);let d=dist(u,t);if(d<3.5){hit(t,u.stats.melee,u);addEffect(t.x,1.4,t.z,0xe9a0ff,1.1,.22);const knockFace=Math.atan2(u.x-t.x,u.z-t.z);t.x-=Math.sin(knockFace)*1.1;t.z-=Math.cos(knockFace)*1.1}}
+function special(u){if(!u.alive||u.special>0||u.landingStun>0)return;const t=targetFor(u);if(!t)return;face(u,t);const attackFace=Math.atan2(u.x-t.x,u.z-t.z);u.special=5;animateAction(u,'special',.85);addEffect(u.x,1.7,u.z,0xffdf67,1.3,.35);for(let i=-2;i<=2;i++)fireSpecialProjectile(u,attackFace+i*.095,80)}
 function fireSpecialProjectile(u,a,damage){
  const color=0xffe17b;
  createProjectile(u,a-u.face,damage,27,1.5,color,.23);
 }
-function doStep(u){if(!u.alive||u.step>0||u.boost<130)return;for(const shot of shots){if(shot.target===u)shot.target=null;}u.step=.32;u.boost-=130;let x=move.x,z=move.y;const worldMove=stickDirectionForUnit(u,x,z);let wx=worldMove.x,wz=worldMove.z;if(Math.hypot(wx,wz)<.2){const fallback=stickDirectionForUnit(u,0,-1);wx=fallback.x;wz=fallback.z}const m=Math.hypot(wx,wz)||1;u.vx=wx/m*22;u.vz=wz/m*22;u.stun=.04;animateAction(u,'step',.28);addEffect(u.x,.7,u.z,0x7ebcff,.8,.2)}
-function startHorizontalBoost(u){if(!u||!u.alive||u.boost<60)return;u.boostDash=true;u.boostLift=false;u.dashTime=0;u.grounded=false;u.vy=0;let x=move.x,z=move.y;const worldMove=stickDirectionForUnit(u,x,z);let wx=worldMove.x,wz=worldMove.z;if(Math.hypot(wx,wz)<.18){const fallback=stickDirectionForUnit(u,0,1);wx=fallback.x;wz=fallback.z}const m=Math.hypot(wx,wz)||1;u.dashVX=wx/m;u.dashVZ=wz/m;u.vx=u.dashVX*21;u.vz=u.dashVZ*21;animateAction(u,'boost',.3);addEffect(u.x,1.1,u.z,0x56eaff,.8,.22)}
-function beginBoostPress(){const u=units[0];if(!u||!u.alive||u.boost<60)return;const now=performance.now();boostPressActive=true;boostPressStarted=now;boostMode=(now-lastBoostTap<200)?'dash':'pending';lastBoostTap=now;if(boostMode==='dash')startHorizontalBoost(u);else boostHoldTimer=setTimeout(()=>{if(boostPressActive&&boostMode==='pending'){boostMode='lift';if(u.grounded){u.vy=5.5;u.grounded=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}u.boostLift=true}},170)}
-function endBoostPress(){const u=units[0];if(!boostPressActive)return;boostPressActive=false;clearTimeout(boostHoldTimer);if(u){if(boostMode==='pending'&&u.grounded&&u.boost>=60){u.vy=10.5;u.grounded=false;u.boostLift=false;u.boostDash=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}else if(boostMode==='lift'){u.boostLift=false}else if(boostMode==='dash'){u.boostDash=false}}boostMode='';}
+function doStep(u){if(!u.alive||u.step>0||u.landingStun>0||u.boost<130)return;for(const shot of shots){if(shot.target===u)shot.target=null;}u.step=.32;u.boost-=130;let x=move.x,z=move.y;const worldMove=stickDirectionForUnit(u,x,z);let wx=worldMove.x,wz=worldMove.z;if(Math.hypot(wx,wz)<.2){const fallback=stickDirectionForUnit(u,0,-1);wx=fallback.x;wz=fallback.z}const m=Math.hypot(wx,wz)||1;u.vx=wx/m*22;u.vz=wz/m*22;u.stun=.04;animateAction(u,'step',.28);addEffect(u.x,.7,u.z,0x7ebcff,.8,.2)}
+function startHorizontalBoost(u){
+ if(!u||!u.alive||u.landingStun>0||u.boost<60)return;
+ u.boostDash=true;u.boostLift=false;u.dashReleaseTimer=0;u.dashTime=0;u.grounded=false;u.vy=0;
+ let d=stickDirectionForUnit(u,move.x,move.y),m=Math.hypot(d.x,d.z);
+ if(m<.18){const speed=Math.hypot(u.vx,u.vz);if(speed>.1){d={x:u.vx/speed,z:u.vz/speed};m=1}else{d=stickDirectionForUnit(u,0,1);m=Math.hypot(d.x,d.z)||1}}
+ u.dashVX=d.x/m;u.dashVZ=d.z/m;u.vx=u.dashVX*21;u.vz=u.dashVZ*21;
+ u.y=Math.max(u.y,groundHeight(u.x,u.z)+.22);
+ animateAction(u,'boost',.3);addEffect(u.x,1.1,u.z,0x56eaff,.8,.22)
+}
+function beginBoostPress(){const u=units[0];if(!u||!u.alive||u.landingStun>0||u.boost<60)return;const now=performance.now();boostPressActive=true;boostPressStarted=now;boostMode=(now-lastBoostTap<200)?'dash':'pending';lastBoostTap=now;if(boostMode==='dash')startHorizontalBoost(u);else boostHoldTimer=setTimeout(()=>{if(boostPressActive&&boostMode==='pending'&&u.landingStun<=0){boostMode='lift';if(u.grounded){u.vy=5.5;u.grounded=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}u.boostLift=true}},170)}
+function endBoostPress(){const u=units[0];if(!boostPressActive)return;boostPressActive=false;clearTimeout(boostHoldTimer);if(u){if(boostMode==='pending'&&u.grounded&&u.boost>=60){u.vy=10.5;u.grounded=false;u.boostLift=false;u.boostDash=false;animateAction(u,'jump',.35);addEffect(u.x,.25,u.z,0x56eaff,.55,.2)}else if(boostMode==='lift'){u.boostLift=false}else if(boostMode==='dash'&&u.boostDash){u.dashReleaseTimer=.7}}boostMode='';}
 function update(dt){
  if(!started||over)return;elapsed+=dt;if(elapsed>=180){over=true;$('message').textContent=costA===costB?'DRAW':costA>costB?'TEAM A WIN':'TEAM B WIN';$('message').style.display='block';$('submessage').textContent='タイムアップ';$('submessage').style.display='block';$('restart').style.display='block';return}
  for(const u of units){
-  u.fire=Math.max(0,u.fire-dt);if(u.ammo<u.maxAmmo){u.ammoReload-=dt;if(u.ammoReload<=0){u.ammo++;u.ammoReload=u.ammo<u.maxAmmo?u.stats.reload:0}}u.melee=Math.max(0,u.melee-dt);u.special=Math.max(0,u.special-dt);u.stun=Math.max(0,u.stun-dt);u.step=Math.max(0,u.step-dt);if(u.grounded)u.boost=Math.min(u.maxBoost,u.boost+dt*u.stats.regen);
-  if(!u.alive){u.respawn-=dt;if(u.respawn<=0){const teamCost=u.team===0?costA:costB;if(teamCost>0){u.alive=true;u.hp=u.maxHp;u.mesh.visible=true;scene.add(u.mesh);u.x=u.team===0?-24+Math.random()*5:24+Math.random()*5;u.z=Math.random()*18-9;u.y=groundHeight(u.x,u.z);u.vy=0;u.vx=0;u.vz=0;u.grounded=true;u.boostDash=false;u.action='idle';u.actionTime=0;u.mesh.position.set(u.x,u.y,u.z);u.stun=.65;addEffect(u.x,1,u.z,0xffffff,1,.3)}else{u.respawn=999}}continue}
+  u.fire=Math.max(0,u.fire-dt);if(u.ammo<u.maxAmmo){u.ammoReload-=dt;if(u.ammoReload<=0){u.ammo++;u.ammoReload=u.ammo<u.maxAmmo?u.stats.reload:0}}u.melee=Math.max(0,u.melee-dt);u.special=Math.max(0,u.special-dt);u.stun=Math.max(0,u.stun-dt);u.step=Math.max(0,u.step-dt);
+  if(u.landingStun>0){u.landingStun=Math.max(0,u.landingStun-dt);if(u.landingStun<=.1&&!u.landingRefillDone){u.boost=u.maxBoost;u.landingRefillDone=true}}
+  if(u.grounded&&u.landingStun<=0)u.boost=Math.min(u.maxBoost,u.boost+dt*u.stats.regen);
+  if(!u.alive){u.respawn-=dt;if(u.respawn<=0){const teamCost=u.team===0?costA:costB;if(teamCost>0){u.alive=true;u.hp=u.maxHp;u.mesh.visible=true;scene.add(u.mesh);u.x=u.team===0?-24+Math.random()*5:24+Math.random()*5;u.z=Math.random()*18-9;u.y=groundHeight(u.x,u.z);u.vy=0;u.vx=0;u.vz=0;u.grounded=true;u.boostDash=false;u.dashReleaseTimer=0;u.landingStun=0;u.action='idle';u.actionTime=0;u.mesh.position.set(u.x,u.y,u.z);u.stun=.65;addEffect(u.x,1,u.z,0xffffff,1,.3)}else{u.respawn=999}}continue}
+  // Landing recovery accepts no movement, boost, weapon, step, or queued input.
+  if(u.player&&u.landingStun>0){
+   u.vx=0;u.vz=0;u.vy=0;u.grounded=true;u.y=groundHeight(u.x,u.z);
+   u.mesh.position.set(u.x,u.y+Math.sin(elapsed*8+u.ai)*.025,u.z);u.mesh.rotation.y=u.face;
+   const landingTarget=targetFor(u);updateUnitHeadTracking(u,landingTarget,dt);
+   u.actionTime=Math.max(0,u.actionTime-dt);if(u.actionTime<=0){u.action='idle';if(u.mesh.userData.weapon)u.mesh.userData.weapon.rotation.x=-.1}
+   const glow=u.mesh.userData.glow;if(glow){glow.emissive=new THREE.Color(u.stats.color);glow.emissiveIntensity=1.2+Math.sin(elapsed*8)*.3}
+   continue;
+  }
   const t=targetFor(u);if(!t)continue;const dx=t.x-u.x,dz=t.z-u.z,d=Math.hypot(dx,dz)||1;
   let mx=0,mz=0;
   if(u.player){
@@ -360,23 +400,46 @@ function update(dt){
   }
   const speed=u.stats.speed;
   if(u.player){
-   const accel=u.grounded?30:10;u.vx+=(mx*speed-u.vx)*Math.min(1,accel*dt);u.vz+=(mz*speed-u.vz)*Math.min(1,accel*dt);
-   if(Math.hypot(mx,mz)<.05&&u.grounded){u.vx*=Math.max(0,1-dt*5.5);u.vz*=Math.max(0,1-dt*5.5)}
-   if(u.boostDash&&boostPressActive&&boostMode==='dash'&&u.boost>0){u.vx=u.dashVX*21;u.vz=u.dashVZ*21;u.vy=0;u.boost=Math.max(0,u.boost-dt*330);if(u.boost<=0){u.boostDash=false;boostPressActive=false;boostMode=''}}
-   else if(u.boostLift&&boostPressActive&&boostMode==='lift'&&u.boost>0){u.vy=Math.min(8.5,u.vy+10*dt);u.boost=Math.max(0,u.boost-dt*270);if(u.boost<=0)u.boostLift=false}
-   else {u.boostDash=false;u.boostLift=false;u.vy-=24*dt;}
+   const wasGrounded=u.grounded;
+   const dashHeld=boostPressActive&&boostMode==='dash';
+   if(u.dashReleaseTimer>0&&!dashHeld)u.dashReleaseTimer=Math.max(0,u.dashReleaseTimer-dt);
+   const dashActive=u.boostDash&&(dashHeld||u.dashReleaseTimer>0)&&u.boost>0;
+   if(dashActive){
+    if(Math.hypot(mx,mz)>.05){const turned=rotateDirectionToward(u.dashVX,u.dashVZ,mx,mz,Math.PI*dt);u.dashVX=turned.x;u.dashVZ=turned.z}
+    u.vx=u.dashVX*21;u.vz=u.dashVZ*21;u.vy=0;
+    u.boost=Math.max(0,u.boost-dt*330);
+    if(u.boost<=0){u.boostDash=false;u.dashReleaseTimer=0;if(dashHeld){boostPressActive=false;boostMode=''}}
+   }else if(u.boostLift&&boostPressActive&&boostMode==='lift'&&u.boost>0){
+    u.vy=Math.min(8.5,u.vy+10*dt);u.boost=Math.max(0,u.boost-dt*270);
+    if(u.boost<=0)u.boostLift=false;
+   }else{
+    u.boostDash=false;u.boostLift=false;u.vy-=24*dt;
+    const inputMag=Math.hypot(mx,mz);
+    if(wasGrounded&&inputMag>.05){
+     let currentSpeed=Math.hypot(u.vx,u.vz);const targetSpeed=inputMag*speed;
+     currentSpeed+=(targetSpeed-currentSpeed)*Math.min(1,30*dt);
+     if(currentSpeed<.05){u.vx=mx/inputMag*currentSpeed;u.vz=mz/inputMag*currentSpeed}
+     else{const turned=rotateDirectionToward(u.vx/currentSpeed,u.vz/currentSpeed,mx,mz,THREE.MathUtils.degToRad(360)*dt);u.vx=turned.x*currentSpeed;u.vz=turned.z*currentSpeed}
+    }else if(wasGrounded&&inputMag<=.05){u.vx*=Math.max(0,1-dt*5.5);u.vz*=Math.max(0,1-dt*5.5)}
+    else{u.vx+=(mx*speed-u.vx)*Math.min(1,10*dt);u.vz+=(mz*speed-u.vz)*Math.min(1,10*dt)}
+   }
    if(u.step>0){u.vx*=Math.max(0,1-dt*1.5);u.vz*=Math.max(0,1-dt*1.5)}
    const oldX=u.x,oldZ=u.z;u.x+=u.vx*dt;u.z+=u.vz*dt;u.y+=u.vy*dt;
    u.x=clamp(u.x,-arena/2+1,arena/2-1);u.z=clamp(u.z,-arena/2+1,arena/2-1);resolveBuildingCollision(u,oldX,oldZ);
-   const ground=groundHeight(u.x,u.z);if(u.y<=ground){u.y=ground;u.vy=0;u.grounded=true;u.boostDash=false;u.boostLift=false;u.dashTime=0}else u.grounded=false;
+   const ground=groundHeight(u.x,u.z);
+   const stillDash=u.boostDash&&((boostPressActive&&boostMode==='dash')||u.dashReleaseTimer>0)&&u.boost>0;
+   if(stillDash){
+    // Stay just above the terrain and climb rising ground without landing or slowing.
+    u.y=Math.max(u.y,ground+.22);u.vy=0;u.grounded=false;
+   }else if(u.y<=ground){
+    u.y=ground;u.vy=0;u.grounded=true;u.boostDash=false;u.boostLift=false;u.dashReleaseTimer=0;u.dashTime=0;
+    if(!wasGrounded)beginLandingStun(u);
+   }else u.grounded=false;
   }else{const oldX=u.x,oldZ=u.z;u.vx+=(mx*speed-u.vx)*Math.min(1,5*dt);u.vz+=(mz*speed-u.vz)*Math.min(1,5*dt);u.x+=u.vx*dt;u.z+=u.vz*dt;u.x=clamp(u.x,-arena/2+1,arena/2-1);u.z=clamp(u.z,-arena/2+1,arena/2-1);resolveBuildingCollision(u,oldX,oldZ);u.y=groundHeight(u.x,u.z);}
-  // Every unit turns its body toward its actual travel direction, while its
-  // head independently tracks its current lock target.
-  turnBodyTowardMovement(u,dt);
+  turnBodyTowardMovement(u);
   u.mesh.position.set(u.x,u.y+(u.grounded?Math.sin(elapsed*8+u.ai)*.025:0),u.z);u.mesh.rotation.y=u.face;
   updateUnitHeadTracking(u,t,dt);
   u.actionTime=Math.max(0,u.actionTime-dt);const ud=u.mesh.userData;if(u.actionTime<=0){u.action='idle';if(ud.weapon)ud.weapon.rotation.x=-.1}if(ud.arms){const phase=elapsed*10;ud.arms[0].rotation.x=u.action==='shoot'?-0.9:u.action==='melee'?-Math.sin((1-u.actionTime/.62)*Math.PI)*1.8:u.action==='special'?-1.2:Math.sin(phase)*.04;ud.arms[1].rotation.x=u.action==='special'?-1.0:0;ud.legs[0].rotation.x=Math.sin(phase)*Math.min(.35,Math.hypot(u.vx,u.vz)*.025);ud.legs[1].rotation.x=-ud.legs[0].rotation.x;}
-
   if(u.player){const glow=u.mesh.userData.glow;if(glow){glow.emissive=new THREE.Color(u.stats.color);glow.emissiveIntensity=1.2+Math.sin(elapsed*8)*.3}}
  }
  for(let i=shots.length-1;i>=0;i--){const s=shots[i];
@@ -396,7 +459,7 @@ function update(dt){
 function updateHud(){
  $('time').textContent=Math.max(0,Math.ceil(180-elapsed));$('costA').textContent=costA;$('costB').textContent=costB;$('costFillA').style.width=(Math.max(0,costA)/6000*100)+'%';$('costFillB').style.width=(Math.max(0,costB)/6000*100)+'%';
  const t=units[targetIndex];$('lockInfo').textContent='LOCK: '+(t&&t.alive?t.name:'AUTO TARGET');const p=units[0];
- if(p){$('boostFill').style.width=(p.boost/p.maxBoost*100)+'%';const arc=(id,ratio)=>$(id).style.setProperty('--arc-angle',(Math.max(0,Math.min(1,ratio))*90)+'deg');const reloadProgress=p.ammo<p.maxAmmo?Math.max(0,Math.min(1,1-p.ammoReload/Math.max(.01,p.stats.reload))):0;arc('shoot',(p.ammo+reloadProgress)/p.maxAmmo);arc('boost',p.boost/p.maxBoost);arc('melee',1-p.melee/.72);arc('special',1-p.special/5);arc('step',1-p.step/.32);arc('lock',1)}
+ if(p){const boostBar=$('boostBar'),boostRatio=p.boost/p.maxBoost;$('boostFill').style.width=(boostRatio*100)+'%';boostBar.classList.toggle('boost-yellow',boostRatio<.6&&boostRatio>=.3);boostBar.classList.toggle('boost-red',boostRatio<.3&&boostRatio>0);boostBar.classList.toggle('overheat',p.boost<=0);const arc=(id,ratio)=>$(id).style.setProperty('--arc-angle',(Math.max(0,Math.min(1,ratio))*90)+'deg');const reloadProgress=p.ammo<p.maxAmmo?Math.max(0,Math.min(1,1-p.ammoReload/Math.max(.01,p.stats.reload))):0;arc('shoot',(p.ammo+reloadProgress)/p.maxAmmo);arc('boost',p.boost/p.maxBoost);arc('melee',1-p.melee/.72);arc('special',1-p.special/5);arc('step',1-p.step/.32);arc('lock',1)}
 }
 function updateUnitHp(){
  for(let i=0;i<units.length;i++){
@@ -423,9 +486,7 @@ function updateCombatCamera(p,t,dt){
 
  // Smooth the camera's orbit around the player, but do not let player
  // rotation itself steer the camera. This also softens lock-switch turns.
- const forwardBlend=1-Math.exp(-7.8*Math.max(0,dt));
- if(!combatCameraReady)cameraForward.copy(desiredForward);
- else cameraForward.lerp(desiredForward,forwardBlend).normalize();
+ cameraForward.copy(desiredForward);
 
  const targetDistance=hasTarget?Math.hypot(t.x-p.x,t.z-p.z):18;
  // The camera stays behind and above the player. Pull back slightly at
@@ -438,13 +499,8 @@ function updateCombatCamera(p,t,dt){
   p.z-cameraForward.z*followDistance
  );
 
- if(!combatCameraReady){
-  camera.position.copy(cameraDesiredPosition);
-  combatCameraReady=true;
- }else{
-  const positionBlend=1-Math.exp(-10.2*Math.max(0,dt));
-  camera.position.lerp(cameraDesiredPosition,positionBlend);
- }
+ camera.position.copy(cameraDesiredPosition);
+ combatCameraReady=true;
 
  // The locked enemy itself—not the midpoint—is the optical center.
  // Looking directly at its torso keeps it centered while the camera
@@ -497,18 +553,18 @@ requestAnimationFrame(render);
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7))});
 const zone=$('stickZone'),stick=$('stick');let stickId=null;
 function setStick(e){const r=zone.getBoundingClientRect(),dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2),len=Math.hypot(dx,dy),max=43,x=len>max?dx/len*max:dx,y=len>max?dy/len*max:dy;move.x=x/max;move.y=-y/max;stick.style.transform=`translate(${x}px,${y}px)`}
-zone.addEventListener('pointerdown',e=>{stickId=e.pointerId;zone.setPointerCapture(stickId);setStick(e)});zone.addEventListener('pointermove',e=>{if(e.pointerId===stickId)setStick(e)});
+zone.addEventListener('pointerdown',e=>{const player=units[0];if(player&&player.landingStun>0)return;stickId=e.pointerId;zone.setPointerCapture(stickId);setStick(e)});zone.addEventListener('pointermove',e=>{if(e.pointerId===stickId)setStick(e)});
 function release(e){if(e.pointerId===stickId){stickId=null;move.x=move.y=0;stick.style.transform='translate(0,0)'}}
 zone.addEventListener('pointerup',release);zone.addEventListener('pointercancel',release);
 function bind(id,down,up){const el=$(id);el.addEventListener('pointerdown',e=>{e.preventDefault();el.setPointerCapture(e.pointerId);down()});el.addEventListener('pointerup',e=>{e.preventDefault();if(up)up()});el.addEventListener('pointercancel',()=>{if(up)up()})}
-bind('shoot',()=>fireHeld=true,()=>fireHeld=false);
+bind('shoot',()=>{const p=units[0];if(p&&p.landingStun>0)return;fireHeld=true},()=>fireHeld=false);
 const boostButton=$('boost');boostButton.addEventListener('pointerdown',e=>{e.preventDefault();boostButton.setPointerCapture(e.pointerId);beginBoostPress()});boostButton.addEventListener('pointerup',e=>{e.preventDefault();endBoostPress()});boostButton.addEventListener('pointercancel',endBoostPress);boostButton.addEventListener('lostpointercapture',endBoostPress);
 bind('step',()=>doStep(units[0]));
 bind('melee',()=>melee(units[0]));
 bind('special',()=>special(units[0]));
-bind('lock',()=>{const valid=[2,3].filter(i=>units[i].alive);if(valid.length){let i=valid.indexOf(targetIndex);targetIndex=valid[(i+1)%valid.length];updateHud()}});
+bind('lock',()=>{const p=units[0];if(p&&p.landingStun>0)return;const valid=[2,3].filter(i=>units[i].alive);if(valid.length){let i=valid.indexOf(targetIndex);targetIndex=valid[(i+1)%valid.length];updateHud()}});
 $('start').addEventListener('click',reset);$('restart').addEventListener('click',()=>{$('setup').style.display='flex';$('message').textContent='EXTREME DUEL 3D'});
-addEventListener('keydown',e=>{keys[e.key]=true;if(e.key===' '){e.preventDefault();fireHeld=true}if(e.key==='Shift'&&!boostPressActive)beginBoostPress();if(e.key.toLowerCase()==='j')melee(units[0]);if(e.key.toLowerCase()==='k')special(units[0]);if(e.key.toLowerCase()==='l')doStep(units[0])});
+addEventListener('keydown',e=>{const p=units[0];if(p&&p.landingStun>0){e.preventDefault();return}keys[e.key]=true;if(e.key===' '){e.preventDefault();fireHeld=true}if(e.key==='Shift'&&!boostPressActive)beginBoostPress();if(e.key.toLowerCase()==='j')melee(units[0]);if(e.key.toLowerCase()==='k')special(units[0]);if(e.key.toLowerCase()==='l')doStep(units[0])});
 addEventListener('keyup',e=>{keys[e.key]=false;if(e.key===' ')fireHeld=false;if(e.key==='Shift')endBoostPress()});
 setInterval(()=>{if(fireHeld&&started&&!over)fire(units[0])},80);
 })();
