@@ -501,21 +501,19 @@ function updateUnitHp(){
 // world positions every frame (never by adding offsets to its previous position),
 // which prevents movement-dependent drift and button-triggered snapping.
 function updateCombatCamera(p,t,dt){
- // Keep the camera independent from the unit's body yaw. Its horizontal
- // placement is based only on the line between player and locked target.
+ // Camera orbit follows the player-to-lock-target direction, independently
+ // from the unit's body yaw. Restore the pre-maximum follow response.
  const hasTarget=!!(t&&t.alive);
  if(hasTarget) desiredForward.set(t.x-p.x,0,t.z-p.z);
  else desiredForward.set(-Math.sin(p.face),0,-Math.cos(p.face));
  if(desiredForward.lengthSq()<1e-6)desiredForward.set(0,0,-1);
  desiredForward.normalize();
 
- // Smooth the camera's orbit around the player, but do not let player
- // rotation itself steer the camera. This also softens lock-switch turns.
- cameraForward.copy(desiredForward);
+ const forwardBlend=1-Math.exp(-7.8*Math.max(0,dt));
+ if(!combatCameraReady)cameraForward.copy(desiredForward);
+ else cameraForward.lerp(desiredForward,forwardBlend).normalize();
 
  const targetDistance=hasTarget?Math.hypot(t.x-p.x,t.z-p.z):18;
- // The camera stays behind and above the player. Pull back slightly at
- // longer ranges so the target and the player's full model remain visible.
  const followDistance=7.2+clamp(targetDistance*.045,0,2.4);
  const cameraHeight=4.2+clamp(targetDistance*.015,0,.65);
  cameraDesiredPosition.set(
@@ -524,14 +522,22 @@ function updateCombatCamera(p,t,dt){
   p.z-cameraForward.z*followDistance
  );
 
- camera.position.copy(cameraDesiredPosition);
- combatCameraReady=true;
+ if(!combatCameraReady){
+  camera.position.copy(cameraDesiredPosition);
+  combatCameraReady=true;
+ }else{
+  const positionBlend=1-Math.exp(-10.2*Math.max(0,dt));
+  camera.position.lerp(cameraDesiredPosition,positionBlend);
+ }
 
- // The locked enemy itself—not the midpoint—is the optical center.
- // Looking directly at its torso keeps it centered while the camera
- // position follows the player from behind.
+ // Aim at the midpoint between the player's and target's torso anchors.
+ // This keeps both combatants balanced around the screen center.
  if(hasTarget){
-  cameraDesiredLook.set(t.x,t.y+1.35-targetDistance*.18,t.z);
+  cameraDesiredLook.set(
+   (p.x+t.x)*.5,
+   (p.y+t.y)*.5+1.35,
+   (p.z+t.z)*.5
+  );
  }else{
   cameraDesiredLook.set(
    p.x+cameraForward.x*12,
