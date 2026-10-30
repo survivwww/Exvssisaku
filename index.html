@@ -162,7 +162,12 @@ const modelStatus=$('modelStatus'),startButton=$('start');
 const gltfLoader=new THREE.GLTFLoader();
 gltfLoader.load('prinzeugen.glb',gltf=>{
  prinzEugenTemplate=gltf.scene;
- modelStatus.textContent='プリンツ・オイゲンのモデル読み込み完了（7種アニメーション）';
+ prinzEugenAnimations=Array.isArray(gltf.animations)?gltf.animations:[];
+ const animationNames=['Idle','Move','Boost','Shoot','Melee','Hit','Destroy'];
+ const loadedNames=prinzEugenAnimations.map(clip=>clip.name);
+ const missingNames=animationNames.filter(name=>!loadedNames.includes(name));
+ if(missingNames.length)console.warn('Prinz Eugen animations missing:',missingNames);
+ modelStatus.textContent='プリンツ・オイゲンのモデル読み込み完了（'+prinzEugenAnimations.length+'種アニメーション）';
  startButton.disabled=false;startButton.textContent='出撃する';
 },undefined,error=>{
  console.error('Prinz Eugen GLB load failed:',error);
@@ -172,10 +177,26 @@ gltfLoader.load('prinzeugen.glb',gltf=>{
 function createUnitVisual(kind,color,player){
  if(kind==='light'&&prinzEugenTemplate){
   const model=THREE.SkeletonUtils.clone(prinzEugenTemplate);
+  const visualRoot=new THREE.Group();
+  // Rotate only the visual model: the game-controlled root keeps its original axes.
+  visualRoot.rotation.y=Math.PI;
   model.scale.setScalar(2.3/20.953943252563477);
-  model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
-  model.userData.isPrinzEugen=true;
-  return model;
+  model.traverse(o=>{
+   if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
+  });
+  let headBone=null;
+  model.traverse(o=>{
+   if(!headBone&&(o.name==='頭'||/^(head|head[_ .-])/i.test(o.name)))headBone=o;
+  });
+  visualRoot.add(model);
+  visualRoot.userData.isPrinzEugen=true;
+  if(headBone){
+   visualRoot.userData.headBone=headBone;
+   visualRoot.userData.headRestQuaternion=headBone.quaternion.clone();
+  }else{
+   console.warn('Prinz Eugen head bone was not found; head tracking disabled.');
+  }
+  return visualRoot;
  }
  return robotMesh(color,player);
 }
@@ -236,7 +257,7 @@ function face(u,t){if(!t)return;u.face=Math.atan2(u.x-t.x,u.z-t.z);if(!u.player)
 function angleDelta(a,b){return Math.atan2(Math.sin(a-b),Math.cos(a-b))}
 function applyHeadTracking(u,t){
  const ud=u.mesh.userData,head=ud.headBone,rest=ud.headRestQuaternion;if(!head||!rest||!t)return;
- const yaw=clamp(angleDelta(u.face,u.bodyYaw),-2.45,2.45);
+ const yaw=clamp(angleDelta(u.face,u.bodyYaw+Math.PI),-2.45,2.45);
  const horizontal=Math.hypot(t.x-u.x,t.z-u.z);
  const pitch=clamp(Math.atan2((t.y+1.45)-(u.y+2.05),Math.max(.001,horizontal)),-.42,.42);
  const delta=new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch,yaw,0,'YXZ'));
@@ -339,6 +360,8 @@ function update(dt){
   if(u.player&&horizontalSpeed>.65){const desiredBodyYaw=Math.atan2(-u.vx,-u.vz);u.bodyYaw+=angleDelta(desiredBodyYaw,u.bodyYaw)*Math.min(1,dt*(u.boostDash?13:8));}
   else if(!u.player){u.bodyYaw=u.face;}
   u.mesh.position.set(u.x,u.y+(u.grounded?Math.sin(elapsed*8+u.ai)*.025:0),u.z);u.mesh.rotation.y=u.bodyYaw;
+  // Update authored animation first, then apply procedural head tracking.
+  if(u.animMixer)u.animMixer.update(dt);
   applyHeadTracking(u,t);
   u.actionTime=Math.max(0,u.actionTime-dt);const ud=u.mesh.userData;
   if(u.actionTime<=0){u.action='idle';if(ud.weapon)ud.weapon.rotation.x=-.1;if(u.animActions){if(!u.grounded||u.boostDash||u.boostLift||u.step>0)playUnitAnimation(u,'Boost',true);else if(horizontalSpeed>1.0)playUnitAnimation(u,'Move',true);else playUnitAnimation(u,'Idle',true);}}
