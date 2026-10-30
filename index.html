@@ -111,8 +111,8 @@ select{width:100%;padding:12px;border-radius:9px;border:1px solid #66869b;backgr
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/utils/SkeletonUtils.js"></script>
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
@@ -157,11 +157,12 @@ const stats={
  melee:{hp:1100,speed:9.1,shot:40,rate:1.12,ammo:5,reload:1.45,melee:220,boost:950,regen:540,cost:3000,color:0xff7ec8},
  light:{hp:850,speed:11.4,shot:48,rate:.78,ammo:7,reload:1.3,melee:125,boost:1200,regen:590,cost:2000,color:0x73ffb0}
 };
-let prinzEugenTemplate=null;
+let prinzEugenTemplate=null,prinzEugenAnimations=[];
 const modelStatus=$('modelStatus'),startButton=$('start');
 const gltfLoader=new THREE.GLTFLoader();
 gltfLoader.load('prinzeugen.glb',gltf=>{
  prinzEugenTemplate=gltf.scene;
+ prinzEugenAnimations=gltf.animations||[];
  modelStatus.textContent='プリンツ・オイゲンのモデル読み込み完了';
  startButton.disabled=false;startButton.textContent='出撃する';
 },undefined,error=>{
@@ -175,6 +176,11 @@ function createUnitVisual(kind,color,player){
   model.scale.setScalar(2.3/20.953943252563477);
   model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
   model.userData.isPrinzEugen=true;
+  model.userData.animMixer=new THREE.AnimationMixer(model);
+  model.userData.animActions={};
+  for(const clip of prinzEugenAnimations){model.userData.animActions[clip.name.toLowerCase()]=model.userData.animMixer.clipAction(clip);}
+  model.userData.currentAnimation='';model.userData.currentAnimationLoop=null;
+  playUnitAnimation({mesh:model},'idle',true);
   return model;
  }
  return robotMesh(color,player);
@@ -203,7 +209,7 @@ function spawn(name,team,x,z,kind='balanced',player=false){
  const s=stats[kind]||stats.balanced,mesh=createUnitVisual(kind,player?s.color:(team===0?0x47f0bb:0xff586f),player);mesh.position.set(x,groundHeight(x,z),z);scene.add(mesh);
  return {name,team,x,z,y:groundHeight(x,z),vy:0,vx:0,vz:0,grounded:true,boostDash:false,boostLift:false,dashTime:0,lastBoostTap:0,ammo:s.ammo,maxAmmo:s.ammo,ammoReload:0,action:'idle',actionTime:0,hp:s.hp,maxHp:s.hp,alive:true,respawn:0,mesh,player,kind,stats:s,fire:0,melee:0,special:0,boost:s.boost,maxBoost:s.boost,boosting:0,step:0,stun:0,face:team===0?Math.PI:0,ai:Math.random()*5,respawnCost:s.cost};
 }
-function removeUnit(u){scene.remove(u.mesh);u.alive=false;u.mesh.visible=false}
+function removeUnit(u){u.alive=false;u.dying=true;u.mesh.visible=true;animateAction(u,'destroy',1.3)}
 function reset(){
  for(const u of units)scene.remove(u.mesh);for(const s of shots)scene.remove(s.mesh);for(const e of effects)scene.remove(e.mesh);
  shots=[];effects.length=0;const kind=$('suit').value;difficulty=$('difficulty').value;
@@ -215,7 +221,15 @@ function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function dist(a,b){return Math.hypot(a.x-b.x,a.z-b.z)}
 function targetFor(u){let opts=units.filter(v=>v.team!==u.team&&v.alive);if(!opts.length)return null;if(u.player){let t=units[targetIndex];return t&&t.alive?t:opts[0]}return opts.sort((a,b)=>dist(u,a)-dist(u,b))[0]}
 function face(u,t){if(!t)return;u.face=Math.atan2(u.x-t.x,u.z-t.z);u.mesh.rotation.y=u.face}
-function animateAction(u,name,duration){u.action=name;u.actionTime=duration; if(u.mesh.userData.weapon)u.mesh.userData.weapon.rotation.x=name==='shoot'?-0.65:-0.1;}
+function playUnitAnimation(u,name,loop=true){
+ const ud=u&&u.mesh&&u.mesh.userData;if(!ud||!ud.animActions)return;
+ const key=({idle:'idle',move:'move',boost:'boost',jump:'boost',step:'boost',shoot:'shoot',special:'shoot',melee:'melee',hit:'hit',destroy:'destroy'})[name]||'idle';
+ if(ud.currentAnimation===key&&ud.currentAnimationLoop===loop)return;
+ const next=ud.animActions[key]||ud.animActions.idle;if(!next)return;
+ const prev=ud.animActions[ud.currentAnimation];next.reset();next.enabled=true;next.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1);next.clampWhenFinished=!loop;next.fadeIn(.09).play();
+ if(prev&&prev!==next)prev.fadeOut(.09);ud.currentAnimation=key;ud.currentAnimationLoop=loop;
+}
+function animateAction(u,name,duration){u.action=name;u.actionTime=duration;playUnitAnimation(u,name,false);if(u.mesh.userData.weapon)u.mesh.userData.weapon.rotation.x=name==='shoot'?-0.65:-0.1;}
 function addEffect(x,y,z,color,size=1,life=.25){
  const mesh=new THREE.Mesh(new THREE.SphereGeometry(size,8,8),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8}));mesh.position.set(x,y,z);scene.add(mesh);effects.push({mesh,life,max:life,size});
 }
@@ -239,7 +253,7 @@ function createProjectile(u,spread,damage,speed,life,color,size=.16){
  addEffect(origin.x,origin.y,origin.z,color,.25,.12);
 }
 function fire(u,spread=0,damage=null,speed=23){
- if(!u.alive||u.fire>0||u.stun>0||u.ammo<=0)return;const t=targetFor(u);if(!t)return;face(u,t);if(u.player)animateAction(u,'shoot',.22);
+ if(!u.alive||u.fire>0||u.stun>0||u.ammo<=0)return;const t=targetFor(u);if(!t)return;face(u,t);animateAction(u,'shoot',.22);
  const color=u.player?u.stats.color:(u.team===0?0x55ffc9:0xff536e);
  createProjectile(u,spread,damage??u.stats.shot,speed,2,color);
  u.fire=u.stats.rate;u.ammo=Math.max(0,u.ammo-1);if(u.ammo<u.maxAmmo&&u.ammoReload<=0)u.ammoReload=u.stats.reload;
@@ -251,7 +265,7 @@ function hit(u,damage,owner){
   if(owner.team===0)costB=Math.max(0,costB-u.respawnCost);else costA=Math.max(0,costA-u.respawnCost);
   for(let i=0;i<15;i++)addEffect(u.x+(Math.random()-.5)*2,Math.random()*3,u.z+(Math.random()-.5)*2,0xffcf79,.2+Math.random()*.2,.5);
   if(costA<=0||costB<=0){over=true;$('message').textContent=costA<=0?'TEAM B WIN':'TEAM A WIN';$('message').style.display='block';$('submessage').textContent='チームコストが尽きました';$('submessage').style.display='block';$('restart').style.display='block'}
- }
+ }else{animateAction(u,'hit',.38)}
 }
 function melee(u){if(!u.alive||u.melee>0)return;const t=targetFor(u);if(!t)return;face(u,t);u.melee=.72;animateAction(u,'melee',.62);addEffect(u.x-u.mesh.position.x*.0,1.2,u.z,0xe9a0ff,.55,.18);let d=dist(u,t);if(d<3.5){hit(t,u.stats.melee,u);addEffect(t.x,1.4,t.z,0xe9a0ff,1.1,.22);t.x-=Math.sin(u.face)*1.1;t.z-=Math.cos(u.face)*1.1}}
 function special(u){if(!u.alive||u.special>0)return;const t=targetFor(u);if(!t)return;face(u,t);u.special=5;animateAction(u,'special',.85);addEffect(u.x,1.7,u.z,0xffdf67,1.3,.35);for(let i=-2;i<=2;i++)fireSpecialProjectile(u,u.face+i*.095,80)}
@@ -266,8 +280,9 @@ function endBoostPress(){const u=units[0];if(!boostPressActive)return;boostPress
 function update(dt){
  if(!started||over)return;elapsed+=dt;if(elapsed>=180){over=true;$('message').textContent=costA===costB?'DRAW':costA>costB?'TEAM A WIN':'TEAM B WIN';$('message').style.display='block';$('submessage').textContent='タイムアップ';$('submessage').style.display='block';$('restart').style.display='block';return}
  for(const u of units){
+  if(u.mesh.userData.animMixer)u.mesh.userData.animMixer.update(dt);
   u.fire=Math.max(0,u.fire-dt);if(u.ammo<u.maxAmmo){u.ammoReload-=dt;if(u.ammoReload<=0){u.ammo++;u.ammoReload=u.ammo<u.maxAmmo?u.stats.reload:0}}u.melee=Math.max(0,u.melee-dt);u.special=Math.max(0,u.special-dt);u.stun=Math.max(0,u.stun-dt);u.step=Math.max(0,u.step-dt);if(u.grounded)u.boost=Math.min(u.maxBoost,u.boost+dt*u.stats.regen);
-  if(!u.alive){u.respawn-=dt;if(u.respawn<=0){const teamCost=u.team===0?costA:costB;if(teamCost>0){u.alive=true;u.hp=u.maxHp;u.mesh.visible=true;scene.add(u.mesh);u.x=u.team===0?-24+Math.random()*5:24+Math.random()*5;u.z=Math.random()*18-9;u.y=groundHeight(u.x,u.z);u.vy=0;u.vx=0;u.vz=0;u.grounded=true;u.boostDash=false;u.action='idle';u.actionTime=0;u.mesh.position.set(u.x,u.y,u.z);u.stun=.65;addEffect(u.x,1,u.z,0xffffff,1,.3)}else{u.respawn=999}}continue}
+  if(!u.alive){u.respawn-=dt;if(u.dying&&u.respawn<=2.9){u.dying=false;u.mesh.visible=false;scene.remove(u.mesh)}if(u.respawn<=0){const teamCost=u.team===0?costA:costB;if(teamCost>0){u.alive=true;u.hp=u.maxHp;u.mesh.visible=true;scene.add(u.mesh);u.x=u.team===0?-24+Math.random()*5:24+Math.random()*5;u.z=Math.random()*18-9;u.y=groundHeight(u.x,u.z);u.vy=0;u.vx=0;u.vz=0;u.grounded=true;u.boostDash=false;u.dying=false;u.action='idle';u.actionTime=0;u.mesh.position.set(u.x,u.y,u.z);u.stun=.65;playUnitAnimation(u,'idle',true);addEffect(u.x,1,u.z,0xffffff,1,.3)}else{u.respawn=999}}continue}
   const t=targetFor(u);if(!t)continue;const dx=t.x-u.x,dz=t.z-u.z,d=Math.hypot(dx,dz)||1;face(u,t);
   let mx=0,mz=0;
   if(u.player){
@@ -297,11 +312,8 @@ function update(dt){
    u.x=clamp(u.x,-arena/2+1,arena/2-1);u.z=clamp(u.z,-arena/2+1,arena/2-1);resolveBuildingCollision(u,oldX,oldZ);
    const ground=groundHeight(u.x,u.z);if(u.y<=ground){u.y=ground;u.vy=0;u.grounded=true;u.boostDash=false;u.boostLift=false;u.dashTime=0}else u.grounded=false;
   }else{const oldX=u.x,oldZ=u.z;u.vx+=(mx*speed-u.vx)*Math.min(1,5*dt);u.vz+=(mz*speed-u.vz)*Math.min(1,5*dt);u.x+=u.vx*dt;u.z+=u.vz*dt;u.x=clamp(u.x,-arena/2+1,arena/2-1);u.z=clamp(u.z,-arena/2+1,arena/2-1);resolveBuildingCollision(u,oldX,oldZ);u.y=groundHeight(u.x,u.z);}
-  // Keep the player's facing direction aligned with the currently locked enemy,
-  // independently of the player's movement direction.
-  if(u.player){const facingTarget=targetFor(u);if(facingTarget)face(u,facingTarget);}
   u.mesh.position.set(u.x,u.y+(u.grounded?Math.sin(elapsed*8+u.ai)*.025:0),u.z);u.mesh.rotation.y=u.face;
-  u.actionTime=Math.max(0,u.actionTime-dt);const ud=u.mesh.userData;if(u.actionTime<=0){u.action='idle';if(ud.weapon)ud.weapon.rotation.x=-.1}if(ud.arms){const phase=elapsed*10;ud.arms[0].rotation.x=u.action==='shoot'?-0.9:u.action==='melee'?-Math.sin((1-u.actionTime/.62)*Math.PI)*1.8:u.action==='special'?-1.2:Math.sin(phase)*.04;ud.arms[1].rotation.x=u.action==='special'?-1.0:0;ud.legs[0].rotation.x=Math.sin(phase)*Math.min(.35,Math.hypot(u.vx,u.vz)*.025);ud.legs[1].rotation.x=-ud.legs[0].rotation.x;}
+  u.actionTime=Math.max(0,u.actionTime-dt);const ud=u.mesh.userData;if(u.actionTime<=0){const moving=Math.hypot(u.vx,u.vz)>1.5;if(u.boostDash||u.boostLift){u.action='boost';playUnitAnimation(u,'boost',true)}else if(moving){u.action='move';playUnitAnimation(u,'move',true)}else{u.action='idle';playUnitAnimation(u,'idle',true)}if(ud.weapon)ud.weapon.rotation.x=-.1}if(ud.arms){const phase=elapsed*10;ud.arms[0].rotation.x=u.action==='shoot'?-0.9:u.action==='melee'?-Math.sin((1-u.actionTime/.62)*Math.PI)*1.8:u.action==='special'?-1.2:Math.sin(phase)*.04;ud.arms[1].rotation.x=u.action==='special'?-1.0:0;ud.legs[0].rotation.x=Math.sin(phase)*Math.min(.35,Math.hypot(u.vx,u.vz)*.025);ud.legs[1].rotation.x=-ud.legs[0].rotation.x;}
 
   if(u.player){const glow=u.mesh.userData.glow;if(glow){glow.emissive=new THREE.Color(u.stats.color);glow.emissiveIntensity=1.2+Math.sin(elapsed*8)*.3}}
  }
