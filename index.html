@@ -122,6 +122,13 @@ const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false});
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputEncoding=THREE.sRGBEncoding;
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x87c9f2);
 const camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,450);
+// Combat camera state: all positions are derived from the player/lock target each frame.
+const cameraForward=new THREE.Vector3(1,0,0);
+const desiredForward=new THREE.Vector3(0,0,-1);
+const cameraDesiredPosition=new THREE.Vector3();
+const cameraLookTarget=new THREE.Vector3();
+const cameraDesiredLook=new THREE.Vector3();
+let combatCameraReady=false;
 scene.add(new THREE.HemisphereLight(0xdaf2ff,0x4e7540,1.65));
 const sun=new THREE.DirectionalLight(0xfff0c9,2.25);sun.position.set(-38,52,-42);sun.castShadow=true;scene.add(sun);
 // Visible sun disk in the open sky; lighting is provided by the directional light above.
@@ -222,7 +229,7 @@ function reset(){
  for(const u of units)scene.remove(u.mesh);for(const s of shots)scene.remove(s.mesh);for(const e of effects)scene.remove(e.mesh);
  shots=[];effects.length=0;const kind=$('suit').value;difficulty=$('difficulty').value;
  units=[spawn('YOU',0,-24,0,kind,true),spawn('ALLY',0,-29,8,'balanced'),spawn('ENEMY 1',1,24,-6,'balanced'),spawn('ENEMY 2',1,30,9,'light')];
- elapsed=0;over=false;targetIndex=2;costA=6000;costB=6000;started=true;move={x:0,y:0};fireHeld=false;boostPressActive=false;boostMode='';clearTimeout(boostHoldTimer);
+ elapsed=0;over=false;targetIndex=2;combatCameraReady=false;cameraForward.set(1,0,0);costA=6000;costB=6000;started=true;move={x:0,y:0};fireHeld=false;boostPressActive=false;boostMode='';clearTimeout(boostHoldTimer);
  $('setup').style.display='none';$('restart').style.display='none';$('message').style.display='none';$('submessage').style.display='none';updateHud();
 }
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
@@ -378,18 +385,64 @@ function updateUnitHp(){
   el.querySelector('.hpFill').style.width=(Math.max(0,u.hp/u.maxHp)*100)+'%';
  }
 }
+// EXVS-inspired lock-on chase camera. The camera is calculated from absolute
+// world positions every frame (never by adding offsets to its previous position),
+// which prevents movement-dependent drift and button-triggered snapping.
+function updateCombatCamera(p,t,dt){
+ // Keep the camera independent from the unit's body yaw. Its horizontal
+ // placement is based only on the line between player and locked target.
+ const hasTarget=!!(t&&t.alive);
+ if(hasTarget) desiredForward.set(t.x-p.x,0,t.z-p.z);
+ else desiredForward.set(-Math.sin(p.face),0,-Math.cos(p.face));
+ if(desiredForward.lengthSq()<1e-6)desiredForward.set(0,0,-1);
+ desiredForward.normalize();
+
+ // Smooth the camera's orbit around the player, but do not let player
+ // rotation itself steer the camera. This also softens lock-switch turns.
+ const forwardBlend=1-Math.exp(-5.2*Math.max(0,dt));
+ if(!combatCameraReady)cameraForward.copy(desiredForward);
+ else cameraForward.lerp(desiredForward,forwardBlend).normalize();
+
+ const targetDistance=hasTarget?Math.hypot(t.x-p.x,t.z-p.z):18;
+ // The camera stays behind and above the player. Pull back slightly at
+ // longer ranges so the target and the player's full model remain visible.
+ const followDistance=9.0+clamp(targetDistance*.055,0,3.0);
+ const cameraHeight=4.8+clamp(targetDistance*.018,0,.8);
+ cameraDesiredPosition.set(
+  p.x-cameraForward.x*followDistance,
+  p.y+cameraHeight,
+  p.z-cameraForward.z*followDistance
+ );
+
+ if(!combatCameraReady){
+  camera.position.copy(cameraDesiredPosition);
+  combatCameraReady=true;
+ }else{
+  const positionBlend=1-Math.exp(-6.8*Math.max(0,dt));
+  camera.position.lerp(cameraDesiredPosition,positionBlend);
+ }
+
+ // The locked enemy itself—not the midpoint—is the optical center.
+ // Looking directly at its torso keeps it centered while the camera
+ // position follows the player from behind.
+ if(hasTarget){
+  cameraDesiredLook.set(t.x,t.y+1.35,t.z);
+ }else{
+  cameraDesiredLook.set(
+   p.x+cameraForward.x*12,
+   p.y+1.45,
+   p.z+cameraForward.z*12
+  );
+ }
+ camera.up.set(0,1,0);
+ camera.lookAt(cameraDesiredLook);
+ camera.updateMatrixWorld(true);
+}
 function render(now){requestAnimationFrame(render);const dt=Math.min(.04,(now-last)/1000||0);last=now;update(dt);
  const p=units[0];
  if(p){
   const t=targetFor(p);
-  // Chase camera: keep the player in the foreground and the locked enemy near screen center.
-  const behind=new THREE.Vector3(p.x+Math.sin(p.face)*9,p.y+5.2,p.z+Math.cos(p.face)*9);
-  camera.position.lerp(behind,.12);
-  const look=t&&t.alive?new THREE.Vector3(t.x,t.y+1.55,t.z):new THREE.Vector3(p.x,p.y+1.2,p.z);
-  camera.lookAt(look);
-  // Update the camera world matrix before projecting HUD anchors. Without this,
-  // projection can use the previous frame's camera transform during fast lateral dashes.
-  camera.updateMatrixWorld(true);
+  updateCombatCamera(p,t,dt);
   camera.updateProjectionMatrix();
   updateUnitHp();
   const marker=$('lockMarker');
