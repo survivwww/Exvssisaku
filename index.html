@@ -297,6 +297,9 @@ function update(dt){
    u.x=clamp(u.x,-arena/2+1,arena/2-1);u.z=clamp(u.z,-arena/2+1,arena/2-1);resolveBuildingCollision(u,oldX,oldZ);
    const ground=groundHeight(u.x,u.z);if(u.y<=ground){u.y=ground;u.vy=0;u.grounded=true;u.boostDash=false;u.boostLift=false;u.dashTime=0}else u.grounded=false;
   }else{const oldX=u.x,oldZ=u.z;u.vx+=(mx*speed-u.vx)*Math.min(1,5*dt);u.vz+=(mz*speed-u.vz)*Math.min(1,5*dt);u.x+=u.vx*dt;u.z+=u.vz*dt;u.x=clamp(u.x,-arena/2+1,arena/2-1);u.z=clamp(u.z,-arena/2+1,arena/2-1);resolveBuildingCollision(u,oldX,oldZ);u.y=groundHeight(u.x,u.z);}
+  // Keep the player's facing direction aligned with the currently locked enemy,
+  // independently of the player's movement direction.
+  if(u.player){const facingTarget=targetFor(u);if(facingTarget)face(u,facingTarget);}
   u.mesh.position.set(u.x,u.y+(u.grounded?Math.sin(elapsed*8+u.ai)*.025:0),u.z);u.mesh.rotation.y=u.face;
   u.actionTime=Math.max(0,u.actionTime-dt);const ud=u.mesh.userData;if(u.actionTime<=0){u.action='idle';if(ud.weapon)ud.weapon.rotation.x=-.1}if(ud.arms){const phase=elapsed*10;ud.arms[0].rotation.x=u.action==='shoot'?-0.9:u.action==='melee'?-Math.sin((1-u.actionTime/.62)*Math.PI)*1.8:u.action==='special'?-1.2:Math.sin(phase)*.04;ud.arms[1].rotation.x=u.action==='special'?-1.0:0;ud.legs[0].rotation.x=Math.sin(phase)*Math.min(.35,Math.hypot(u.vx,u.vz)*.025);ud.legs[1].rotation.x=-ud.legs[0].rotation.x;}
 
