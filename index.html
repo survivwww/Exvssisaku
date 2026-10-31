@@ -509,16 +509,29 @@ function updateCombatCamera(p,t,dt){
  if(desiredForward.lengthSq()<1e-6)desiredForward.set(0,0,-1);
  desiredForward.normalize();
 
- const forwardBlend=1-Math.exp(-7.8*Math.max(0,dt));
+ // Double the previous follow response for both orbit and position tracking.
+ const forwardBlend=1-Math.exp(-15.6*Math.max(0,dt));
  if(!combatCameraReady)cameraForward.copy(desiredForward);
  else cameraForward.lerp(desiredForward,forwardBlend).normalize();
 
  const targetDistance=hasTarget?Math.hypot(t.x-p.x,t.z-p.z):18;
  const followDistance=7.2+clamp(targetDistance*.045,0,2.4);
  const cameraHeight=4.2+clamp(targetDistance*.015,0,.65);
+ const midpointY=hasTarget?(p.y+t.y)*.5:p.y;
+ let cameraY=midpointY+cameraHeight;
+ if(hasTarget&&targetDistance>1e-4){
+  // Keep the acute angle between the P-T line and the midpoint-to-camera
+  // line constant in the vertical side view. The camera remains behind P,
+  // so its horizontal offset from the midpoint includes half of P-T.
+  const cameraAngle=18*Math.PI/180;
+  const lineAngle=Math.atan2(t.y-p.y,targetDistance);
+  const cameraLineAngle=lineAngle+Math.PI-cameraAngle;
+  const horizontalOffset=followDistance+targetDistance*.5;
+  cameraY=midpointY-horizontalOffset*Math.tan(cameraLineAngle);
+ }
  cameraDesiredPosition.set(
   p.x-cameraForward.x*followDistance,
-  p.y+cameraHeight,
+  cameraY,
   p.z-cameraForward.z*followDistance
  );
 
@@ -526,16 +539,26 @@ function updateCombatCamera(p,t,dt){
   camera.position.copy(cameraDesiredPosition);
   combatCameraReady=true;
  }else{
-  const positionBlend=1-Math.exp(-10.2*Math.max(0,dt));
+  const positionBlend=1-Math.exp(-20.4*Math.max(0,dt));
   camera.position.lerp(cameraDesiredPosition,positionBlend);
+ }
+ // Re-solve height from the camera's smoothed horizontal position as well,
+ // so follow lag does not temporarily change the specified angle.
+ if(hasTarget&&targetDistance>1e-4){
+  const actualHorizontalOffset=
+   (camera.position.x-(p.x+t.x)*.5)*cameraForward.x+
+   (camera.position.z-(p.z+t.z)*.5)*cameraForward.z;
+  const lineAngle=Math.atan2(t.y-p.y,targetDistance);
+  const cameraLineAngle=lineAngle+Math.PI-18*Math.PI/180;
+  camera.position.y=midpointY+actualHorizontalOffset*Math.tan(cameraLineAngle);
  }
 
  // Aim at the midpoint between the player's and target's torso anchors.
- // This keeps both combatants balanced around the screen center.
+ // Camera height is independently solved to preserve the fixed side-view angle.
  if(hasTarget){
   cameraDesiredLook.set(
    (p.x+t.x)*.5,
-   (p.y+t.y)*.5+1.35,
+   midpointY+1.35,
    (p.z+t.z)*.5
   );
  }else{
